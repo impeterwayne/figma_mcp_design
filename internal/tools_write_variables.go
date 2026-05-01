@@ -96,4 +96,73 @@ func registerWriteVariableTools(s *server.MCPServer, node *Node) {
 		resp, err := node.Send(ctx, "delete_variable", nil, params)
 		return renderResponse(resp, err)
 	})
+	s.AddTool(mcp.NewTool("rename_variable",
+		mcp.WithDescription("Rename a variable in place, preserving all node bindings and variable aliases. "+
+			"Use slash notation for group hierarchies (e.g. 'Color/Brand/Primary'). "+
+			"WARNING: renaming a variable that uses slash-notation may move it to a different group in the variables panel."),
+		mcp.WithString("variableId",
+			mcp.Required(),
+			mcp.Description("Variable ID to rename (from get_variable_defs)"),
+		),
+		mcp.WithString("name",
+			mcp.Required(),
+			mcp.Description("New variable name — use slash notation to group e.g. 'Color/Brand/Primary'"),
+		),
+		mcp.WithString("description", mcp.Description("Optional new description for the variable")),
+	), func(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+		params := req.GetArguments()
+		resp, err := node.Send(ctx, "rename_variable", nil, params)
+		return renderResponse(resp, err)
+	})
+
+	s.AddTool(mcp.NewTool("rename_mode",
+		mcp.WithDescription("Rename a mode within a variable collection (e.g. rename 'Mode 1' to 'Light')."),
+		mcp.WithString("collectionId",
+			mcp.Required(),
+			mcp.Description("Variable collection ID"),
+		),
+		mcp.WithString("modeId",
+			mcp.Required(),
+			mcp.Description("Mode ID to rename (from get_variable_defs, in the modes array)"),
+		),
+		mcp.WithString("name",
+			mcp.Required(),
+			mcp.Description("New mode name"),
+		),
+	), func(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+		params := req.GetArguments()
+		resp, err := node.Send(ctx, "rename_mode", nil, params)
+		return renderResponse(resp, err)
+	})
+
+	s.AddTool(mcp.NewTool("rename_variable_collection",
+		mcp.WithDescription("Rename a variable collection. All variables in the collection remain intact."),
+		mcp.WithString("collectionId",
+			mcp.Required(),
+			mcp.Description("Variable collection ID (from get_variable_defs)"),
+		),
+		mcp.WithString("name",
+			mcp.Required(),
+			mcp.Description("New collection name"),
+		),
+	), func(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+		params := req.GetArguments()
+		resp, err := node.Send(ctx, "rename_variable_collection", nil, params)
+		return renderResponse(resp, err)
+	})
+
+	s.AddTool(mcp.NewTool("batch_rename_variables",
+		mcp.WithDescription("Rename up to 100 variables in a single operation. All renames are applied in one WebSocket "+
+			"round-trip with a single undo step, making this 10-50x faster than calling rename_variable repeatedly. "+
+			"Partial failures are reported per-item — the operation does NOT abort on individual errors."),
+		mcp.WithArray("renames",
+			mcp.Required(),
+			mcp.Description("Array of rename objects. Each must have: variableId (string, required), name (string, required), description (string, optional). Maximum 100 items."),
+			mcp.Items(map[string]any{"type": "object"}),
+		),
+	), func(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+		params := req.GetArguments()
+		resp, err := node.Send(ctx, "batch_rename_variables", nil, params)
+		return renderResponse(resp, err)
+	})
 }

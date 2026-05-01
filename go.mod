@@ -1,4 +1,4 @@
-module github.com/vkhanhqui/figma-mcp-go
+module github.com/impeterwayne/figma-mcp-design
 
 go 1.26.1
 

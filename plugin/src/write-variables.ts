@@ -120,6 +120,89 @@ export const handleWriteVariableRequest = async (request: any) => {
       }
     }
 
+    case "rename_variable": {
+      const p = request.params || {};
+      if (!p.variableId) throw new Error("variableId is required");
+      if (!p.name) throw new Error("name is required");
+      const variable = await figma.variables.getVariableByIdAsync(p.variableId);
+      if (!variable) throw new Error(`Variable not found: ${p.variableId}`);
+      const oldName = variable.name;
+      variable.name = p.name;
+      if (p.description != null) variable.description = p.description;
+      figma.commitUndo();
+      return {
+        type: request.type,
+        requestId: request.requestId,
+        data: { variableId: variable.id, oldName, newName: variable.name },
+      };
+    }
+
+    case "rename_mode": {
+      const p = request.params || {};
+      if (!p.collectionId) throw new Error("collectionId is required");
+      if (!p.modeId) throw new Error("modeId is required");
+      if (!p.name) throw new Error("name is required");
+      const collection = await figma.variables.getVariableCollectionByIdAsync(p.collectionId);
+      if (!collection) throw new Error(`Collection not found: ${p.collectionId}`);
+      const mode = collection.modes.find((m) => m.modeId === p.modeId);
+      if (!mode) throw new Error(`Mode not found: ${p.modeId}`);
+      const oldName = mode.name;
+      collection.renameMode(p.modeId, p.name);
+      figma.commitUndo();
+      return {
+        type: request.type,
+        requestId: request.requestId,
+        data: { collectionId: p.collectionId, modeId: p.modeId, oldName, newName: p.name },
+      };
+    }
+
+    case "rename_variable_collection": {
+      const p = request.params || {};
+      if (!p.collectionId) throw new Error("collectionId is required");
+      if (!p.name) throw new Error("name is required");
+      const collection = await figma.variables.getVariableCollectionByIdAsync(p.collectionId);
+      if (!collection) throw new Error(`Collection not found: ${p.collectionId}`);
+      const oldName = collection.name;
+      collection.name = p.name;
+      figma.commitUndo();
+      return {
+        type: request.type,
+        requestId: request.requestId,
+        data: { collectionId: collection.id, oldName, newName: collection.name },
+      };
+    }
+
+    case "batch_rename_variables": {
+      const p = request.params || {};
+      if (!Array.isArray(p.renames)) throw new Error("renames array is required");
+      if (p.renames.length > 100) throw new Error("Maximum 100 renames per batch");
+      const results: Array<{ variableId: string; oldName?: string; newName?: string; error?: string }> = [];
+      let succeeded = 0;
+      let failed = 0;
+      for (const item of p.renames) {
+        try {
+          if (!item.variableId) throw new Error("variableId is required");
+          if (!item.name) throw new Error("name is required");
+          const variable = await figma.variables.getVariableByIdAsync(item.variableId);
+          if (!variable) throw new Error(`Variable not found: ${item.variableId}`);
+          const oldName = variable.name;
+          variable.name = item.name;
+          if (item.description != null) variable.description = item.description;
+          results.push({ variableId: item.variableId, oldName, newName: variable.name });
+          succeeded++;
+        } catch (e: any) {
+          results.push({ variableId: item.variableId, error: e.message || String(e) });
+          failed++;
+        }
+      }
+      figma.commitUndo();
+      return {
+        type: request.type,
+        requestId: request.requestId,
+        data: { total: p.renames.length, succeeded, failed, results },
+      };
+    }
+
     default:
       return null;
   }

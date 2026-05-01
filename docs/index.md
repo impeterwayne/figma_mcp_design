@@ -39,7 +39,8 @@
 - [State Management — Plugin](./state-management-plugin.md) — Reactive state, data flow diagrams
 - [UI Components — Plugin](./ui-components-plugin.md) — Build pipeline, styling
 - [Development Guide](./development-guide.md) — Setup, commands, contributor notes
+- [Setup Guide](./setup-guide.md) — End-user and developer setup, MCP client configuration, troubleshooting
 
 ## Getting Started
 
-Refer to the [Development Guide](./development-guide.md) for setup and run instructions.
+Refer to the [Setup Guide](./setup-guide.md) for complete installation and configuration instructions. For contributor-specific details, see the [Development Guide](./development-guide.md).

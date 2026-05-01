@@ -16,4 +16,11 @@ func RegisterAll(s *server.MCPServer) {
 	addGenerateColorPalette(s)
 	addGenerateTypeScale(s)
 	addGenerateComponentVariants(s)
+	addDesignSystemHealthCheck(s)
+	addDesignSystemRefactor(s)
+	// Design system knowledge prompts (adapted from design-systems-mcp knowledge base)
+	addWCAGAccessibilityAudit(s)
+	addDesignSystemFromReference(s)
+	addAtomicDesignComponentBuilder(s)
+	addDesignTokenNamingStandards(s)
 }

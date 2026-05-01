@@ -1,5 +1,5 @@
 {
-  "name": "Figma MCP Go",
+  "name": "Figma MCP Design",
   "id": "figma-mcp-go",
   "api": "1.0.0",
   "main": "dist/code.js",

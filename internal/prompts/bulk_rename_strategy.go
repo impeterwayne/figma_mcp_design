@@ -69,9 +69,43 @@ modifying any visual properties.
 - Never change names of COMPONENT master nodes (only instances and frames).
 - Preserve "/" hierarchy separators — do not flatten them.
 - If unsure about a name, leave it and flag it for the user to decide.
+
+## Variable & Style Renaming
+
+In addition to scene nodes, this strategy also covers renaming design system tokens
+(variables and styles). Unlike nodes, these do NOT use auto-generated names as the
+primary signal — instead, use the findings from the design_system_health_check prompt.
+
+### Renaming Variables
+- Use rename_variable(variableId, name, description?) for individual variable renames.
+- Use batch_rename_variables(renames) for bulk renames (up to 100 per call, 10-50x faster).
+- Use rename_mode(collectionId, modeId, name) to rename modes (e.g. "Mode 1" → "Light").
+- Use rename_variable_collection(collectionId, name) to rename collections.
+- Slash notation in variable names determines the group hierarchy in the variables panel.
+  Renaming "blue-500" to "Color/Blue/500" will move it into a nested group.
+
+### Renaming Styles
+- Use rename_style(styleId, name, description?) for any style type (paint, text, effect, grid).
+- This works for ALL style types — not just paint styles.
+- Slash notation in style names determines grouping in the styles panel.
+
+### Order of Operations
+1. Rename collections first (changes the container label).
+2. Rename modes (changes mode column headers).
+3. Rename variables (batch where possible).
+4. Rename styles.
+
+This ensures that group containers are named correctly before their children are renamed.
+
+### Key Differences from Node Renaming
+- Variables/styles use health check findings, not auto-name scanning.
+- Variable renames preserve all node bindings automatically.
+- Style renames preserve all node linkages automatically.
+- No need to check for INSTANCE vs master — all variables and styles can be renamed.
 `),
 				),
 			},
 		), nil
 	})
 }
+

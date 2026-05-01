@@ -186,4 +186,51 @@ func registerWriteStyleTools(s *server.MCPServer, node *Node) {
 		resp, err := node.Send(ctx, "bind_variable_to_node", []string{nodeID}, params)
 		return renderResponse(resp, err)
 	})
+	s.AddTool(mcp.NewTool("rename_style",
+		mcp.WithDescription("Rename any local style (paint, text, effect, or grid) in place, preserving all node linkages. "+
+			"Use slash notation for group hierarchies (e.g. 'Brand/Primary', 'Heading/H1'). "+
+			"Unlike update_paint_style, this works for ALL style types."),
+		mcp.WithString("styleId",
+			mcp.Required(),
+			mcp.Description("Style ID to rename (from get_styles)"),
+		),
+		mcp.WithString("name",
+			mcp.Required(),
+			mcp.Description("New style name — use slash notation to organise into groups"),
+		),
+		mcp.WithString("description", mcp.Description("Optional new description for the style")),
+	), func(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+		params := req.GetArguments()
+		resp, err := node.Send(ctx, "rename_style", nil, params)
+		return renderResponse(resp, err)
+	})
+
+	s.AddTool(mcp.NewTool("set_description",
+		mcp.WithDescription("Set the description text on a component, component set, style, or variable. "+
+			"Provide exactly one of nodeId, styleId, or variableId. Pass an empty string to clear the description. "+
+			"Useful for documenting refactoring changes or adding design intent notes."),
+		mcp.WithString("nodeId", mcp.Description("Node ID of a COMPONENT or COMPONENT_SET (colon format e.g. '4029:12345')")),
+		mcp.WithString("styleId", mcp.Description("Style ID (from get_styles)")),
+		mcp.WithString("variableId", mcp.Description("Variable ID (from get_variable_defs)")),
+		mcp.WithString("description",
+			mcp.Required(),
+			mcp.Description("Description text to set. Pass empty string to clear."),
+		),
+	), func(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+		args := req.GetArguments()
+		params := map[string]interface{}{
+			"description": args["description"],
+		}
+		if sid, ok := args["styleId"].(string); ok && sid != "" {
+			params["styleId"] = sid
+		}
+		if vid, ok := args["variableId"].(string); ok && vid != "" {
+			params["variableId"] = vid
+		}
+		if nid, ok := args["nodeId"].(string); ok && nid != "" {
+			params["nodeId"] = NormalizeNodeID(nid)
+		}
+		resp, err := node.Send(ctx, "set_description", nil, params)
+		return renderResponse(resp, err)
+	})
 }

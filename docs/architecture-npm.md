@@ -2,13 +2,13 @@
 
 ## Executive Summary
 
-The NPM package (`@vkhanhqui/figma-mcp-go`) provides cross-platform distribution of the pre-compiled Go binary. It is the recommended way for end users to install and run the MCP server.
+The NPM package (`@impeterwayne/figma-mcp-design`) provides cross-platform distribution of the pre-compiled Go binary. It is the recommended way for end users to install and run the MCP server.
 
 ## Package Structure
 
 ```
 npm/
-├── package.json      # NPM manifest (@vkhanhqui/figma-mcp-go)
+├── package.json      # NPM manifest (@impeterwayne/figma-mcp-design)
 └── bin/
     ├── run.js        # Platform detection + binary launcher
     ├── darwin-amd64/  # macOS Intel binary
@@ -39,7 +39,7 @@ npm/
 
 ## NPM Metadata
 
-- **Package name**: `@vkhanhqui/figma-mcp-go`
-- **Binary name**: `figma-mcp-go` (registered as a global `bin`)
+- **Package name**: `@impeterwayne/figma-mcp-design`
+- **Binary name**: `figma-mcp-design` (registered as a global `bin`)
 - **Engines**: Node.js >= 18.0.0
 - **License**: MIT

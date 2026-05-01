@@ -21,7 +21,7 @@ const binaryPath = path.join(__dirname, `${goos}-${goarch}`, binaryName);
 
 if (!existsSync(binaryPath)) {
   process.stderr.write(
-    '[figma-mcp-go] Binary not found. Try reinstalling: npm install @vkhanhqui/figma-mcp-go\n'
+    '[figma-mcp-design] Binary not found. Try reinstalling: npm install @impeterwayne/figma-mcp-design\n'
   );
   process.exit(1);
 }

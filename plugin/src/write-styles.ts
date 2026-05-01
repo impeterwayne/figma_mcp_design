@@ -286,6 +286,70 @@ export const handleWriteStyleRequest = async (request: any) => {
       };
     }
 
+    case "rename_style": {
+      const p = request.params || {};
+      if (!p.styleId) throw new Error("styleId is required");
+      if (!p.name) throw new Error("name is required");
+      const style = await figma.getStyleByIdAsync(p.styleId);
+      if (!style) throw new Error(`Style not found: ${p.styleId}`);
+      const oldName = style.name;
+      style.name = p.name;
+      if (p.description != null) style.description = p.description;
+      figma.commitUndo();
+      return {
+        type: request.type,
+        requestId: request.requestId,
+        data: { styleId: style.id, oldName, newName: style.name, styleType: style.type },
+      };
+    }
+
+    case "set_description": {
+      const p = request.params || {};
+      const targets = [p.nodeId, p.styleId, p.variableId].filter(Boolean);
+      if (targets.length !== 1) {
+        throw new Error("Exactly one of nodeId, styleId, or variableId is required");
+      }
+      if (p.description == null) throw new Error("description is required");
+
+      if (p.styleId) {
+        const style = await figma.getStyleByIdAsync(p.styleId);
+        if (!style) throw new Error(`Style not found: ${p.styleId}`);
+        style.description = p.description;
+        figma.commitUndo();
+        return {
+          type: request.type,
+          requestId: request.requestId,
+          data: { styleId: style.id, name: style.name, description: p.description },
+        };
+      }
+
+      if (p.variableId) {
+        const variable = await figma.variables.getVariableByIdAsync(p.variableId);
+        if (!variable) throw new Error(`Variable not found: ${p.variableId}`);
+        variable.description = p.description;
+        figma.commitUndo();
+        return {
+          type: request.type,
+          requestId: request.requestId,
+          data: { variableId: variable.id, name: variable.name, description: p.description },
+        };
+      }
+
+      // nodeId path
+      const node = await figma.getNodeByIdAsync(p.nodeId);
+      if (!node) throw new Error(`Node not found: ${p.nodeId}`);
+      if (!("description" in node)) {
+        throw new Error(`Node type ${node.type} does not support descriptions. Only COMPONENT, COMPONENT_SET, and FRAME nodes support descriptions.`);
+      }
+      (node as any).description = p.description;
+      figma.commitUndo();
+      return {
+        type: request.type,
+        requestId: request.requestId,
+        data: { nodeId: node.id, name: node.name, description: p.description },
+      };
+    }
+
     default:
       return null;
   }

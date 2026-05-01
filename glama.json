@@ -1,8 +1,8 @@
 {
   "$schema": "https://glama.ai/mcp/schemas/server.json",
-  "maintainers": ["vkhanhqui"],
-  "name": "figma-mcp-go",
-  "description": "Figma MCP server with full read/write access via plugin bridge — no API token, no rate limits. 58 tools for design automation: styles, variables, components, prototypes, and content.",
+  "maintainers": ["impeterwayne"],
+  "name": "Figma MCP Design",
+  "description": "Figma MCP server with full read/write access via plugin bridge — no API token, no rate limits. 64 tools for design automation: styles, variables, components, prototypes, and content.",
   "license": "MIT",
   "tools": [
     { "name": "get_document", "description": "Full current page tree" },
@@ -61,6 +61,12 @@
     { "name": "set_variable_value", "description": "Set a variable's value for a specific mode" },
     { "name": "bind_variable_to_node", "description": "Bind a variable to a node property" },
     { "name": "delete_variable", "description": "Delete a variable or entire collection" },
+    { "name": "rename_variable", "description": "Rename a variable in place, preserving bindings" },
+    { "name": "rename_mode", "description": "Rename a mode within a variable collection" },
+    { "name": "rename_variable_collection", "description": "Rename a variable collection" },
+    { "name": "batch_rename_variables", "description": "Rename up to 100 variables in one operation" },
+    { "name": "rename_style", "description": "Rename any style type in place, preserving linkages" },
+    { "name": "set_description", "description": "Set description on a component, style, or variable" },
     { "name": "navigate_to_page", "description": "Navigate to a page by ID or name" },
     { "name": "export_tokens", "description": "Export design tokens" }
   ]

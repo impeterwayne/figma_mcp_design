@@ -217,19 +217,19 @@
     <div class="footer-row">
       <a
         class="author"
-        href="https://github.com/vkhanhqui/figma-mcp-go"
+        href="https://github.com/impeterwayne/figma-mcp-design"
         target="_blank"
       >
         <img
           src="https://avatars.githubusercontent.com/u/64468109?v=4"
           alt="avatar"
         />
-        vkhanhqui
+        impeterwayne
       </a>
       <div class="links">
         <a
           class="footer-link"
-          href="https://github.com/vkhanhqui/figma-mcp-go/issues/new?labels=bug"
+          href="https://github.com/impeterwayne/figma-mcp-design/issues/new?labels=bug"
           target="_blank"
           title="Report a bug"
         >
@@ -240,7 +240,7 @@
         </a>
         <a
           class="footer-link"
-          href="https://github.com/vkhanhqui/figma-mcp-go/issues/new?labels=enhancement&title=Feature+request%3A+"
+          href="https://github.com/impeterwayne/figma-mcp-design/issues/new?labels=enhancement&title=Feature+request%3A+"
           target="_blank"
           title="Suggest a feature"
         >
