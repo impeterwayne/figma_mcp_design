@@ -176,7 +176,7 @@ export const handleWriteModifyRequest = async (request: any) => {
       if (!nodeId) throw new Error("nodeId is required");
       const node = await figma.getNodeByIdAsync(nodeId);
       if (!node) throw new Error(`Node not found: ${nodeId}`);
-      if (node.type !== "FRAME") throw new Error(`Node ${nodeId} is not a FRAME`);
+      if (node.type !== "FRAME" && node.type !== "COMPONENT" && node.type !== "COMPONENT_SET") throw new Error(`Node ${nodeId} is not a FRAME or COMPONENT`);
       applyAutoLayout(node, p);
       figma.commitUndo();
       return {

@@ -23,3 +23,5 @@ example/
 .vscode/
 release
 localonly
+__pycache__/
+*.pyc
