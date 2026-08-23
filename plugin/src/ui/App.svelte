@@ -12,7 +12,7 @@
   // Persisted via figma.clientStorage (through plugin core) because localStorage
   // is unavailable inside Figma's data: URL sandbox.
   let serverHost = "127.0.0.1";
-  let serverPort = "1994";
+  let serverPort = "1995";
 
   let showSettings = false;
   let editHost = serverHost;
@@ -78,7 +78,7 @@
 
     if (msg.type === "ws_config") {
       serverHost = msg.host ?? "127.0.0.1";
-      serverPort = msg.port ?? "1994";
+      serverPort = msg.port ?? "1995";
       if (!configLoaded) {
         configLoaded = true;
         connect();
@@ -113,7 +113,7 @@
   function applySettings() {
     serverHost = editHost.trim() || "127.0.0.1";
     const p = parseInt(editPort, 10);
-    serverPort = p > 0 && p <= 65535 ? String(p) : "1994";
+    serverPort = p > 0 && p <= 65535 ? String(p) : "1995";
     // Persist via plugin core (figma.clientStorage), since localStorage is
     // unavailable in Figma's data: URL environment.
     parent.postMessage(
@@ -181,75 +181,34 @@
     </div>
   {/if}
   <div class="footer">
-    <!-- Row 1: server address (left) + connection badge (right) -->
-    <div class="footer-row">
-      {#if showSettings}
-        <div class="settings-panel">
-          <input
-            class="addr-input"
-            bind:value={editHost}
-            placeholder="127.0.0.1"
-            on:keydown={handleKeydown}
-          />
-          <span class="addr-sep">:</span>
-          <input
-            class="port-input"
-            bind:value={editPort}
-            placeholder="1994"
-            on:keydown={handleKeydown}
-          />
-          <button class="apply-btn" on:click={applySettings} title="Apply">✓</button>
-          <button class="cancel-btn" on:click={() => showSettings = false} title="Cancel">✕</button>
-        </div>
-      {:else}
-        <button
-          class="server-addr"
-          on:click={openSettings}
-          title="Click to configure server address"
-        >{serverHost}:{serverPort}</button>
-      {/if}
-      <div class="badge" class:connected class:disconnected={!connected}>
-        <span class="dot" class:connected></span>
-        <span>{connected ? "Connected" : "Disconnected"}</span>
-      </div>
-    </div>
-    <!-- Row 2: author (left) + bug report + feature suggestion (right) -->
-    <div class="footer-row">
-      <a
-        class="author"
-        href="https://github.com/impeterwayne/figma-mcp-design"
-        target="_blank"
-      >
-        <img
-          src="https://avatars.githubusercontent.com/u/64468109?v=4"
-          alt="avatar"
+    {#if showSettings}
+      <div class="settings-panel">
+        <input
+          class="addr-input"
+          bind:value={editHost}
+          placeholder="127.0.0.1"
+          on:keydown={handleKeydown}
         />
-        impeterwayne
-      </a>
-      <div class="links">
-        <a
-          class="footer-link"
-          href="https://github.com/impeterwayne/figma-mcp-design/issues/new?labels=bug"
-          target="_blank"
-          title="Report a bug"
-        >
-          <svg width="12" height="12" viewBox="0 0 16 16" fill="currentColor">
-            <path d="M8 0a8 8 0 1 1 0 16A8 8 0 0 1 8 0ZM1.5 8a6.5 6.5 0 1 0 13 0 6.5 6.5 0 0 0-13 0Zm7-3.25v2.992l2.028.812.772-1.932-2.8-1.872ZM6.272 3.937 3.5 5.808l.772 1.932L6.3 6.928V3.873a.75.75 0 0 0-.028.064ZM8.75 9.75H7.25V11h1.5V9.75Zm0-5.5H7.25v4h1.5v-4Z"/>
-          </svg>
-          Bug
-        </a>
-        <a
-          class="footer-link"
-          href="https://github.com/impeterwayne/figma-mcp-design/issues/new?labels=enhancement&title=Feature+request%3A+"
-          target="_blank"
-          title="Suggest a feature"
-        >
-          <svg width="12" height="12" viewBox="0 0 16 16" fill="currentColor">
-            <path d="M8 1.5c-2.363 0-4 1.69-4 3.75 0 .984.424 1.625.984 2.304l.214.253c.223.264.47.556.673.848.284.411.537.896.621 1.49a.75.75 0 0 1-1.484.211c-.04-.282-.163-.547-.37-.847a8.456 8.456 0 0 0-.542-.68c-.084-.1-.173-.205-.268-.32C3.201 7.75 2.5 6.766 2.5 5.25 2.5 2.31 4.863 0 8 0s5.5 2.31 5.5 5.25c0 1.516-.701 2.5-1.328 3.259-.095.115-.184.22-.268.319-.207.245-.383.453-.541.681-.208.3-.33.565-.37.847a.751.751 0 0 1-1.485-.212c.084-.593.337-1.078.621-1.489.203-.292.45-.584.673-.848.075-.088.147-.173.213-.253.561-.679.985-1.32.985-2.304 0-2.06-1.637-3.75-4-3.75ZM5.75 12h4.5a.75.75 0 0 1 0 1.5h-4.5a.75.75 0 0 1 0-1.5ZM6 14.25a.75.75 0 0 1 .75-.75h2.5a.75.75 0 0 1 0 1.5h-2.5a.75.75 0 0 1-.75-.75Z"/>
-          </svg>
-          Suggest
-        </a>
+        <span class="addr-sep">:</span>
+        <input
+          class="port-input"
+          bind:value={editPort}
+          placeholder="1995"
+          on:keydown={handleKeydown}
+        />
+        <button class="apply-btn" on:click={applySettings} title="Apply">✓</button>
+        <button class="cancel-btn" on:click={() => showSettings = false} title="Cancel">✕</button>
       </div>
+    {:else}
+      <button
+        class="server-addr"
+        on:click={openSettings}
+        title="Click to configure server address"
+      >{serverHost}:{serverPort}</button>
+    {/if}
+    <div class="badge" class:connected class:disconnected={!connected}>
+      <span class="dot" class:connected></span>
+      <span>{connected ? "Connected" : "Disconnected"}</span>
     </div>
   </div>
 </div>
@@ -332,53 +291,9 @@
 
   .footer {
     display: flex;
-    flex-direction: column;
-    gap: 8px;
-  }
-
-  .footer-row {
-    display: flex;
     align-items: center;
     justify-content: space-between;
     gap: 8px;
-  }
-
-  .links {
-    display: flex;
-    align-items: center;
-    gap: 10px;
-  }
-
-  .footer-link {
-    display: flex;
-    align-items: center;
-    gap: 4px;
-    text-decoration: none;
-    color: #888;
-    font-size: 11px;
-  }
-
-  .footer-link:hover {
-    color: #e0e0e0;
-  }
-
-  .author {
-    display: flex;
-    align-items: center;
-    gap: 6px;
-    text-decoration: none;
-    color: #888;
-    font-size: 11px;
-  }
-
-  .author:hover {
-    color: #e0e0e0;
-  }
-
-  .author img {
-    width: 20px;
-    height: 20px;
-    border-radius: 50%;
   }
 
   /* Server address button — shows current host:port, click to edit */

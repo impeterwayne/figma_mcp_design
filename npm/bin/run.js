@@ -12,11 +12,11 @@ const goos = PLATFORM_MAP[process.platform];
 const goarch = ARCH_MAP[process.arch];
 
 if (!goos || !goarch) {
-  process.stderr.write(`[figma-mcp-go] Unsupported platform: ${process.platform}/${process.arch}\n`);
+  process.stderr.write(`[figma-mcp-design] Unsupported platform: ${process.platform}/${process.arch}\n`);
   process.exit(1);
 }
 
-const binaryName = process.platform === 'win32' ? 'figma-mcp-go.exe' : 'figma-mcp-go';
+const binaryName = process.platform === 'win32' ? 'figma-mcp-design.exe' : 'figma-mcp-design';
 const binaryPath = path.join(__dirname, `${goos}-${goarch}`, binaryName);
 
 if (!existsSync(binaryPath)) {

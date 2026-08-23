@@ -1,4 +1,11 @@
-import { serializeVariableValue } from "./serializers";
+import {
+  serializePaints,
+  serializeVariableValue,
+  serializeLineHeight,
+  serializeLetterSpacing,
+  serializeEffects,
+  serializeLayoutGrids,
+} from "./serializers";
 
 export const handleReadStyleRequest = async (request: any) => {
   switch (request.type) {
@@ -17,7 +24,7 @@ export const handleReadStyleRequest = async (request: any) => {
           paints: paintStyles.map((s) => ({
             id: s.id,
             name: s.name,
-            paints: s.paints,
+            paints: serializePaints(s.paints),
           })),
           text: textStyles.map((s) => ({
             id: s.id,
@@ -27,18 +34,18 @@ export const handleReadStyleRequest = async (request: any) => {
             fontStyle: s.fontName ? s.fontName.style : undefined,
             textDecoration:
               s.textDecoration !== "NONE" ? s.textDecoration : undefined,
-            lineHeight: (s as any).lineHeight,
-            letterSpacing: (s as any).letterSpacing,
+            lineHeight: serializeLineHeight((s as any).lineHeight),
+            letterSpacing: serializeLetterSpacing((s as any).letterSpacing),
           })),
           effects: effectStyles.map((s) => ({
             id: s.id,
             name: s.name,
-            effects: s.effects,
+            effects: serializeEffects(s.effects),
           })),
           grids: gridStyles.map((s) => ({
             id: s.id,
             name: s.name,
-            layoutGrids: s.layoutGrids,
+            layoutGrids: serializeLayoutGrids(s.layoutGrids),
           })),
         },
       };
@@ -262,7 +269,7 @@ export const handleReadStyleRequest = async (request: any) => {
             const b = Math.round(paint.color.b * 255).toString(16).padStart(2, "0");
             obj[parts[parts.length - 1]] = { type: "COLOR", value: `#${r}${g}${b}` };
           } else {
-            obj[parts[parts.length - 1]] = { type: "PAINT", value: style.paints };
+            obj[parts[parts.length - 1]] = { type: "PAINT", value: serializePaints(style.paints) };
           }
         }
       }

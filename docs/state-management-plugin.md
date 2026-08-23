@@ -15,7 +15,7 @@ The plugin uses Svelte 5 reactive variables for UI state. There is no external s
 | `activeRequests` | `Set<string>` | Pending request IDs (drives loading state) |
 | `isWorking` | `boolean` (derived) | `activeRequests.size > 0` — shows spinner |
 | `serverHost` | `string` | WebSocket host (default `"127.0.0.1"`) |
-| `serverPort` | `string` | WebSocket port (default `"1994"`) |
+| `serverPort` | `string` | WebSocket port (default `"1995"`) |
 | `showSettings` | `boolean` | Whether settings panel is open |
 | `editHost` / `editPort` | `string` | Temporary values during settings editing |
 | `socket` | `WebSocket \| null` | Current WebSocket instance |

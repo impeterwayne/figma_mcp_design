@@ -11,6 +11,8 @@ import {
   serializeStyles,
   serializeText,
   serializeNode,
+  sanitizeSymbols,
+  serializeReactions,
 } from "./serializers";
 
 // ── Figma global mock ─────────────────────────────────────────────────────────
@@ -75,9 +77,39 @@ describe("serializePaints", () => {
   it("returns undefined for empty array", () => {
     expect(serializePaints([])).toBeUndefined();
   });
-  it("passes through non-SOLID paints", () => {
-    const paints = [{ type: "IMAGE" }, { type: "GRADIENT_LINEAR" }];
-    expect(serializePaints(paints)).toEqual(paints);
+  it("serializes gradient paints with extracted gradient properties", () => {
+    const paints = [
+      {
+        type: "GRADIENT_LINEAR",
+        gradientStops: [
+          { position: 0, color: { r: 1, g: 0, b: 0, a: 1 } },
+          { position: 1, color: { r: 0, g: 0, b: 1, a: 0.5 } },
+        ],
+        gradientTransform: [
+          [1, 0, 0],
+          [0, 1, 0],
+        ],
+      },
+    ];
+    expect(serializePaints(paints)).toEqual([
+      {
+        type: "GRADIENT_LINEAR",
+        gradientStops: [
+          { position: 0, color: "#ff0000" },
+          { position: 1, color: "#0000ff80" },
+        ],
+        gradientTransform: [
+          [1, 0, 0],
+          [0, 1, 0],
+        ],
+      },
+    ]);
+  });
+  it("serializes image paints with image properties", () => {
+    const paints = [{ type: "IMAGE", scaleMode: "FILL", imageHash: "abc123hash" }];
+    expect(serializePaints(paints)).toEqual([
+      { type: "IMAGE", scaleMode: "FILL", imageHash: "abc123hash" },
+    ]);
   });
   it("serializes a solid paint with opacity 1 as plain hex", () => {
     const paints = [{ type: "SOLID", color: { r: 1, g: 0, b: 0 }, opacity: 1 }];
@@ -343,6 +375,12 @@ describe("serializeStyles", () => {
     const result = await serializeStyles(node);
     expect(result.padding).toEqual({ top: 5, right: 20, bottom: 15, left: 10 });
   });
+
+  it("omits all-zero padding", async () => {
+    const node = { paddingLeft: 0, paddingRight: 0, paddingTop: 0, paddingBottom: 0 };
+    const result = await serializeStyles(node);
+    expect(result.padding).toBeUndefined();
+  });
 });
 
 // ── serializeText ─────────────────────────────────────────────────────────────
@@ -511,3 +549,420 @@ describe("serializeNode", () => {
     expect(result.children[0].id).toBe("1:4");
   });
 });
+
+// ── serializeNode depth / detail ──────────────────────────────────────────────
+
+// A three-level tree: Root > Mid > Leaf.
+const nestedTree = () => ({
+  id: "1:1",
+  name: "Root",
+  type: "FRAME",
+  x: 0, y: 0, width: 200, height: 200,
+  opacity: 0.5,
+  visible: false,
+  children: [
+    {
+      id: "1:2",
+      name: "Mid",
+      type: "FRAME",
+      x: 0, y: 0, width: 100, height: 100,
+      children: [
+        { id: "1:3", name: "Leaf", type: "RECTANGLE", x: 0, y: 0, width: 10, height: 10 },
+      ],
+    },
+    { id: "1:4", name: "Sibling", type: "RECTANGLE", x: 0, y: 0, width: 10, height: 10 },
+  ],
+});
+
+describe("serializeNode depth", () => {
+  it("returns the whole subtree when no depth is given", async () => {
+    const result = await serializeNode(nestedTree());
+    expect(result.children[0].children[0].id).toBe("1:3");
+    expect(result.childCount).toBeUndefined();
+  });
+
+  it("depth 0 returns the node alone with childCount", async () => {
+    const result = await serializeNode(nestedTree(), { depth: 0 });
+    expect(result.id).toBe("1:1");
+    expect(result.children).toBeUndefined();
+    expect(result.childCount).toBe(2);
+  });
+
+  it("depth 1 includes children but stubs grandchildren", async () => {
+    const result = await serializeNode(nestedTree(), { depth: 1 });
+    expect(result.children).toHaveLength(2);
+    expect(result.children[0].children).toBeUndefined();
+    expect(result.children[0].childCount).toBe(1);
+    // A childless node at the cutoff carries neither key.
+    expect(result.children[1].childCount).toBeUndefined();
+  });
+
+  it("depth 2 reaches the leaf", async () => {
+    const result = await serializeNode(nestedTree(), { depth: 2 });
+    expect(result.children[0].children[0].id).toBe("1:3");
+    expect(result.children[0].childCount).toBeUndefined();
+  });
+
+  it("treats negative depth as unlimited", async () => {
+    const result = await serializeNode(nestedTree(), { depth: -1 });
+    expect(result.children[0].children[0].id).toBe("1:3");
+  });
+});
+
+describe("serializeNode detail", () => {
+  it("minimal returns identity and bounds only", async () => {
+    const result = await serializeNode(nestedTree(), { detail: "minimal", depth: 1 });
+    expect(Object.keys(result).sort()).toEqual(["bounds", "children", "id", "name", "type"]);
+  });
+
+  it("compact adds styles, opacity and visible but not layout fields", async () => {
+    const result = await serializeNode(nestedTree(), { detail: "compact", depth: 0 });
+    expect(result.opacity).toBe(0.5);
+    expect(result.visible).toBe(false);
+    expect(result.clipsContent).toBeUndefined();
+  });
+
+  it("full is the default", async () => {
+    const result = await serializeNode(nestedTree(), { depth: 0 });
+    expect(result.styles).toBeDefined();
+  });
+});
+
+describe("serializeNode default-value trimming", () => {
+  it("omits MIN/MIN constraints but keeps others", async () => {
+    const defaulted = await serializeNode({
+      id: "1:1", name: "A", type: "RECTANGLE",
+      constraints: { horizontal: "MIN", vertical: "MIN" },
+    });
+    expect(defaulted.constraints).toBeUndefined();
+
+    const stretched = await serializeNode({
+      id: "1:2", name: "B", type: "RECTANGLE",
+      constraints: { horizontal: "STRETCH", vertical: "MIN" },
+    });
+    expect(stretched.constraints).toEqual({ horizontal: "STRETCH", vertical: "MIN" });
+  });
+
+  it("emits clipsContent only when clipping is off", async () => {
+    const clipping = await serializeNode({ id: "1:1", name: "A", type: "FRAME", clipsContent: true });
+    expect(clipping.clipsContent).toBeUndefined();
+
+    const overflowing = await serializeNode({ id: "1:2", name: "B", type: "FRAME", clipsContent: false });
+    expect(overflowing.clipsContent).toBe(false);
+  });
+});
+
+describe("sanitizeSymbols", () => {
+  it("converts top-level symbol to 'mixed'", () => {
+    expect(sanitizeSymbols(Symbol("mixed"))).toBe("mixed");
+  });
+
+  it("converts nested symbols in objects and arrays to 'mixed'", () => {
+    const input = {
+      fontName: Symbol("mixed"),
+      styles: {
+        fontSize: 16,
+        fontWeight: Symbol("mixed"),
+      },
+      list: [Symbol("mixed"), 123, "hello"],
+    };
+    expect(sanitizeSymbols(input)).toEqual({
+      fontName: "mixed",
+      styles: {
+        fontSize: 16,
+        fontWeight: "mixed",
+      },
+      list: ["mixed", 123, "hello"],
+    });
+  });
+
+  it("passes primitive values unchanged", () => {
+    expect(sanitizeSymbols("hello")).toBe("hello");
+    expect(sanitizeSymbols(123)).toBe(123);
+    expect(sanitizeSymbols(null)).toBeNull();
+  });
+
+  it("returns a symbol-free payload by reference instead of cloning it", () => {
+    const input = { data: { nodes: [{ id: "1:1", styles: { fills: ["#ffffff"] } }] } };
+    expect(sanitizeSymbols(input)).toBe(input);
+  });
+
+  it("clones only the branches that contain a symbol", () => {
+    const clean = { id: "1:2", styles: { fills: ["#000000"] } };
+    const input = { data: { clean, dirty: { id: "1:3", fontName: Symbol("mixed") } } };
+
+    const result = sanitizeSymbols(input);
+    expect(result).not.toBe(input);
+    expect(result.data.clean).toBe(clean);
+    expect(result.data.dirty).toEqual({ id: "1:3", fontName: "mixed" });
+  });
+
+  it("reports a throwing getter as 'mixed'", () => {
+    const input = {
+      id: "1:1",
+      get fills(): any {
+        throw new Error("node removed");
+      },
+    };
+    expect(sanitizeSymbols(input)).toEqual({ id: "1:1", fills: "mixed" });
+  });
+});
+
+// ── mixed-property handling ──────────────────────────────────────────────────
+
+describe("mixed stroke properties", () => {
+  const strokedNode = (overrides: any) => ({
+    id: "1:1",
+    name: "Card",
+    type: "FRAME",
+    x: 0,
+    y: 0,
+    width: 100,
+    height: 50,
+    rotation: 0,
+    strokes: [{ type: "SOLID", color: { r: 0, g: 0, b: 0 }, opacity: 1 }],
+    dashPattern: [],
+    ...overrides,
+  });
+
+  it("expands mixed strokeWeight into per-side weights", async () => {
+    const styles = await serializeStyles(
+      strokedNode({
+        strokeWeight: Symbol("mixed"),
+        strokeTopWeight: 0,
+        strokeRightWeight: 0,
+        strokeBottomWeight: 1,
+        strokeLeftWeight: 0,
+      }),
+    );
+    expect(styles.strokeWeight).toEqual({ top: 0, right: 0, bottom: 1, left: 0 });
+  });
+
+  it("keeps a uniform strokeWeight as a number", async () => {
+    const styles = await serializeStyles(strokedNode({ strokeWeight: 2 }));
+    expect(styles.strokeWeight).toBe(2);
+  });
+
+  it("omits a zero strokeWeight", async () => {
+    const styles = await serializeStyles(strokedNode({ strokeWeight: 0 }));
+    expect(styles.strokeWeight).toBeUndefined();
+  });
+
+  it("reports mixed strokeCap and strokeJoin as 'mixed'", async () => {
+    const styles = await serializeStyles(
+      strokedNode({
+        strokeWeight: 1.5,
+        strokeCap: Symbol("mixed"),
+        strokeJoin: Symbol("mixed"),
+      }),
+    );
+    expect(styles.strokeCap).toBe("mixed");
+    expect(styles.strokeJoin).toBe("mixed");
+  });
+});
+
+// Invariant: no Symbol may survive serialization. figma.mixed is a Symbol and
+// figma.ui.postMessage throws "Cannot unwrap symbol" on it, so a single leaked
+// property fails the whole request. This guards every mixable property at once,
+// including ones added later.
+describe("serializeNode symbol invariant", () => {
+  const findSymbols = (value: any, path = "$", out: string[] = []): string[] => {
+    if (typeof value === "symbol") out.push(path);
+    else if (value && typeof value === "object")
+      for (const key of Object.keys(value)) findSymbols(value[key], `${path}.${key}`, out);
+    return out;
+  };
+
+  const MIXED = () => Symbol("figma.mixed");
+
+  it("emits no symbols for a node with every mixable property mixed", async () => {
+    const node: any = {
+      id: "1:1",
+      name: "All Mixed",
+      type: "TEXT",
+      x: 0,
+      y: 0,
+      width: 100,
+      height: 20,
+      rotation: 0,
+      fills: MIXED(),
+      strokes: MIXED(),
+      strokeWeight: MIXED(),
+      strokeTopWeight: 0,
+      strokeRightWeight: 0,
+      strokeBottomWeight: 1,
+      strokeLeftWeight: 0,
+      strokeCap: MIXED(),
+      strokeJoin: MIXED(),
+      dashPattern: [],
+      effects: MIXED(),
+      cornerRadius: MIXED(),
+      topLeftRadius: 4,
+      topRightRadius: 4,
+      bottomRightRadius: 0,
+      bottomLeftRadius: 0,
+      opacity: 1,
+      characters: "hello",
+      fontSize: MIXED(),
+      fontName: MIXED(),
+      fontWeight: MIXED(),
+      textDecoration: MIXED(),
+      lineHeight: MIXED(),
+      letterSpacing: MIXED(),
+      textAlignHorizontal: MIXED(),
+      textAlignVertical: MIXED(),
+      textAutoResize: "NONE",
+      paragraphSpacing: 0,
+      paragraphIndent: 0,
+    };
+
+    const result = await serializeNode(node);
+    expect(findSymbols(result)).toEqual([]);
+  });
+
+  it("emits no symbols for mixed properties nested in children", async () => {
+    const child = {
+      id: "1:2",
+      name: "Icon",
+      type: "VECTOR",
+      x: 0,
+      y: 0,
+      width: 24,
+      height: 24,
+      rotation: 0,
+      strokes: [{ type: "SOLID", color: { r: 0, g: 0, b: 0 }, opacity: 1 }],
+      strokeWeight: 1.5,
+      strokeCap: MIXED(),
+      strokeJoin: MIXED(),
+      dashPattern: [],
+      vectorPaths: [{ windingRule: "NONZERO", data: "M0 0L24 24" }],
+    };
+    const parent: any = {
+      id: "1:1",
+      name: "Row",
+      type: "FRAME",
+      x: 0,
+      y: 0,
+      width: 100,
+      height: 50,
+      rotation: 0,
+      fills: MIXED(),
+      children: [child],
+    };
+
+    const result = await serializeNode(parent);
+    expect(findSymbols(result)).toEqual([]);
+    expect(result.children[0].styles.strokeCap).toBe("mixed");
+  });
+});
+
+// ── serializeReactions ───────────────────────────────────────────────────────
+
+describe("serializeReactions", () => {
+  it("keeps every entry of the actions array", () => {
+    const result = serializeReactions([
+      {
+        trigger: { type: "ON_CLICK" },
+        actions: [
+          { type: "NODE", destinationId: "2:5", navigation: "NAVIGATE", transition: { type: "SMART_ANIMATE" } },
+          { type: "URL", url: "https://example.com" },
+        ],
+      },
+    ]);
+    expect(result).toEqual([
+      {
+        actions: [
+          { type: "NODE", destinationId: "2:5", navigation: "NAVIGATE", transition: { type: "SMART_ANIMATE" } },
+          { type: "URL", url: "https://example.com" },
+        ],
+        trigger: { type: "ON_CLICK" },
+      },
+    ]);
+  });
+
+  it("falls back to the deprecated single action field", () => {
+    const result = serializeReactions([
+      { trigger: { type: "ON_HOVER" }, action: { type: "BACK" } },
+    ]);
+    expect(result).toEqual([{ actions: [{ type: "BACK" }], trigger: { type: "ON_HOVER" } }]);
+  });
+
+  it("keeps the trigger delay and omits actions when there are none", () => {
+    const result = serializeReactions([
+      { trigger: { type: "AFTER_TIMEOUT", delay: 2 }, actions: [] },
+    ]);
+    expect(result).toEqual([{ trigger: { type: "AFTER_TIMEOUT", delay: 2 } }]);
+  });
+
+  it("returns undefined for mixed, empty, or missing reactions", () => {
+    expect(serializeReactions(Symbol("mixed"))).toBeUndefined();
+    expect(serializeReactions([])).toBeUndefined();
+    expect(serializeReactions(undefined)).toBeUndefined();
+  });
+
+  it("surfaces reactions on a serialized node", async () => {
+    const result = await serializeNode({
+      id: "1:1",
+      name: "Button",
+      type: "FRAME",
+      x: 0,
+      y: 0,
+      width: 100,
+      height: 40,
+      rotation: 0,
+      reactions: [{ trigger: { type: "ON_CLICK" }, actions: [{ type: "NODE", destinationId: "2:5" }] }],
+    });
+    expect(result.reactions).toEqual([
+      { actions: [{ type: "NODE", destinationId: "2:5" }], trigger: { type: "ON_CLICK" } },
+    ]);
+  });
+});
+
+// ── failure containment ──────────────────────────────────────────────────────
+
+describe("serializeNode failure containment", () => {
+  const baseProps = { x: 0, y: 0, width: 10, height: 10, rotation: 0 };
+
+  it("degrades a failing child to an identity stub and keeps its siblings", async () => {
+    const parent: any = {
+      id: "1:1",
+      name: "Row",
+      type: "FRAME",
+      ...baseProps,
+      children: [
+        {
+          id: "1:2",
+          name: "Broken",
+          type: "RECTANGLE",
+          ...baseProps,
+          get fills(): any {
+            throw new Error("node removed");
+          },
+        },
+        { id: "1:3", name: "Ok", type: "RECTANGLE", ...baseProps },
+      ],
+    };
+
+    const result = await serializeNode(parent);
+    expect(result.children).toHaveLength(2);
+    expect(result.children[0]).toEqual({ id: "1:2", name: "Broken", type: "RECTANGLE" });
+    expect(result.children[1].name).toBe("Ok");
+  });
+
+  it("serializes a variant COMPONENT whose componentPropertyDefinitions throws", async () => {
+    const variant: any = {
+      id: "1:1",
+      name: "Size=Large",
+      type: "COMPONENT",
+      ...baseProps,
+      get componentPropertyDefinitions(): any {
+        throw new Error("Cannot get componentPropertyDefinitions of a variant");
+      },
+    };
+
+    const result = await serializeNode(variant);
+    expect(result.id).toBe("1:1");
+    expect(result.componentPropertyDefinitions).toBeUndefined();
+  });
+});
+

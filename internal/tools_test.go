@@ -149,7 +149,10 @@ func TestResolveOutputPath_Traversal_Blocked(t *testing.T) {
 
 func TestResolveOutputPath_AbsoluteOutsideDir_Blocked(t *testing.T) {
 	dir := t.TempDir()
-	_, err := resolveOutputPath("/etc/passwd", dir)
+	// Built from the temp dir's parent so the path is absolute on every OS —
+	// a POSIX-style "/etc/passwd" is not absolute on Windows.
+	outside := filepath.Join(filepath.Dir(dir), "outside.png")
+	_, err := resolveOutputPath(outside, dir)
 	if err == nil {
 		t.Error("expected error for absolute path outside working dir")
 	}

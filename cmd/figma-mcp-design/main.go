@@ -15,14 +15,14 @@ import (
 )
 
 // version is injected at build time:
-// go build -ldflags "-X main.version=1.0.0" ./cmd/figma-mcp-go
+// go build -ldflags "-X main.version=1.0.0" ./cmd/figma-mcp-design
 var version = "dev"
 
 var logger = log.New(os.Stderr, "", 0)
 
 func main() {
 	ip := flag.String("ip", "127.0.0.1", "IP address to listen on (use 0.0.0.0 to accept remote connections)")
-	port := flag.Int("port", 1994, "port to listen on")
+	port := flag.Int("port", 1995, "port to listen on")
 	flag.Parse()
 
 	parsedIP := net.ParseIP(*ip)

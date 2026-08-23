@@ -117,7 +117,9 @@ export const handleWriteModifyRequest = async (request: any) => {
       if (!nodeId) throw new Error("nodeId is required");
       const node = await figma.getNodeByIdAsync(nodeId) as any;
       if (!node) throw new Error(`Node not found: ${nodeId}`);
-      const clone = node.clone();
+      const clone = node.type === "COMPONENT"
+        ? node.createInstance()
+        : node.clone();
       if (p.x != null) clone.x = p.x;
       if (p.y != null) clone.y = p.y;
       if (p.parentId) {

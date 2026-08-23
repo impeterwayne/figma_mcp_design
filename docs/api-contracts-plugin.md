@@ -86,7 +86,7 @@ All messages are wrapped in `{ pluginMessage: <payload> }` per Figma plugin conv
 
 | Key | Type | Purpose |
 |-----|------|---------|
-| `ws_config` | `{ host: string, port: string }` | WebSocket server address (default: `127.0.0.1:1994`) |
+| `ws_config` | `{ host: string, port: string }` | WebSocket server address (default: `127.0.0.1:1995`) |
 
 `figma.clientStorage` is used instead of `localStorage` because the UI runs in a `data:` URL sandbox where `localStorage` is unavailable.
 

@@ -40,6 +40,9 @@ func ValidateRPC(tool string, nodeIDs []string, params map[string]interface{}) s
 		if !ValidNodeID(nodeIDs[0]) {
 			return fmt.Sprintf("nodeId must use colon format e.g. 4029:12345, got: %s", nodeIDs[0])
 		}
+		if msg := validateDetail(params); msg != "" {
+			return msg
+		}
 
 	case "get_nodes_info":
 		if len(nodeIDs) == 0 {
@@ -49,6 +52,14 @@ func ValidateRPC(tool string, nodeIDs []string, params map[string]interface{}) s
 			if !ValidNodeID(id) {
 				return fmt.Sprintf("invalid nodeId: %s — must use colon format e.g. 4029:12345", id)
 			}
+		}
+		if msg := validateDetail(params); msg != "" {
+			return msg
+		}
+
+	case "get_selection":
+		if msg := validateDetail(params); msg != "" {
+			return msg
 		}
 
 	case "export_frames_to_pdf":
@@ -103,12 +114,8 @@ func ValidateRPC(tool string, nodeIDs []string, params map[string]interface{}) s
 				return "depth must be a non-negative number"
 			}
 		}
-		if detail, ok := params["detail"].(string); ok && detail != "" {
-			switch detail {
-			case "minimal", "compact", "full":
-			default:
-				return fmt.Sprintf("detail must be minimal, compact, or full, got: %s", detail)
-			}
+		if msg := validateDetail(params); msg != "" {
+			return msg
 		}
 
 	case "search_nodes":
@@ -944,6 +951,20 @@ func validateAutoLayoutParams(params map[string]interface{}) string {
 		}
 	}
 	return ""
+}
+
+// validateDetail checks the shared `detail` verbosity param. The node-lookup
+// tools accept depth -1 for "unlimited", so depth range checks stay per-tool.
+func validateDetail(params map[string]interface{}) string {
+	detail, ok := params["detail"].(string)
+	if !ok || detail == "" {
+		return ""
+	}
+	switch detail {
+	case "minimal", "compact", "full":
+		return ""
+	}
+	return fmt.Sprintf("detail must be minimal, compact, or full, got: %s", detail)
 }
 
 func validExportFormat(f string) bool {

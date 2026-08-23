@@ -29,7 +29,7 @@ npm/
    | `linux`             | `linux`   | `arm64`        | `arm64`     |
    | `win32`             | `windows` |                |             |
 
-2. **Binary resolution**: Constructs path as `bin/{goos}-{goarch}/figma-mcp-go(.exe)`.
+2. **Binary resolution**: Constructs path as `bin/{goos}-{goarch}/figma-mcp-design(.exe)`.
 
 3. **Error handling**: Exits with a clear message if platform is unsupported or binary is missing.
 

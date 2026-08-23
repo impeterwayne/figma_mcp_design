@@ -2,7 +2,7 @@
 
 ## Overview
 
-This document details the communication pathways and boundaries between the three parts of the figma-mcp-go project.
+This document details the communication pathways and boundaries between the three parts of the figma-mcp-design project.
 
 ## End-to-End Architecture
 
@@ -42,7 +42,7 @@ This document details the communication pathways and boundaries between the thre
 
 ### Layer 2: Go Server ↔ Figma Plugin (WebSocket)
 
-- The Leader starts an HTTP server on `{ip}:{port}` (default `127.0.0.1:1994`).
+- The Leader starts an HTTP server on `{ip}:{port}` (default `127.0.0.1:1995`).
 - The Figma Plugin's Svelte UI iframe connects via `ws://{host}:{port}/ws`.
 - Messages are JSON-encoded `BridgeRequest` / `BridgeResponse` objects.
 - Each request carries a unique `requestId` for async correlation.
@@ -89,6 +89,6 @@ This means multiple AI agents can share a single Figma Plugin connection.
 
 ## Port Assignment
 
-- Default: `1994` (configurable via `--port` flag on the Go binary).
+- Default: `1995` (configurable via `--port` flag on the Go binary).
 - The Plugin UI also allows changing host/port in its settings panel.
 - Port must match between the Go server and the Plugin.
