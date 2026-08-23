@@ -2,7 +2,7 @@
 
 ## Overview
 
-This document details the communication pathways and boundaries between the three parts of the figma-mcp-design project.
+This document details the communication pathways and boundaries between the three parts of the figma_mcp_design project.
 
 ## End-to-End Architecture
 

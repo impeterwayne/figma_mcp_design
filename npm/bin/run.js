@@ -12,16 +12,16 @@ const goos = PLATFORM_MAP[process.platform];
 const goarch = ARCH_MAP[process.arch];
 
 if (!goos || !goarch) {
-  process.stderr.write(`[figma-mcp-design] Unsupported platform: ${process.platform}/${process.arch}\n`);
+  process.stderr.write(`[figma_mcp_design] Unsupported platform: ${process.platform}/${process.arch}\n`);
   process.exit(1);
 }
 
-const binaryName = process.platform === 'win32' ? 'figma-mcp-design.exe' : 'figma-mcp-design';
+const binaryName = process.platform === 'win32' ? 'figma_mcp_design.exe' : 'figma_mcp_design';
 const binaryPath = path.join(__dirname, `${goos}-${goarch}`, binaryName);
 
 if (!existsSync(binaryPath)) {
   process.stderr.write(
-    '[figma-mcp-design] Binary not found. Try reinstalling: npm install @impeterwayne/figma-mcp-design\n'
+    '[figma_mcp_design] Binary not found. Try reinstalling: npm install @impeterwayne/figma_mcp_design\n'
   );
   process.exit(1);
 }

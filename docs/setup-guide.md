@@ -1,6 +1,6 @@
 # Setup Guide
 
-Complete guide to setting up **figma-mcp-design** for development or end-user usage.
+Complete guide to setting up **figma_mcp_design** for development or end-user usage.
 
 ---
 
@@ -18,7 +18,7 @@ Complete guide to setting up **figma-mcp-design** for development or end-user us
 
 ## Overview
 
-figma-mcp-design is a three-part system:
+figma_mcp_design is a three-part system:
 
 ```
 ┌─────────────┐  stdio/JSON-RPC   ┌──────────────┐  WebSocket   ┌──────────────────┐
@@ -36,7 +36,7 @@ figma-mcp-design is a three-part system:
 
 Currently, the project must be **built from source**. Follow the [Developer Setup](#developer-setup-from-source) instructions below.
 
-> **Note:** An NPM package (`@impeterwayne/figma-mcp-design`) is planned for future distribution. Once published, it will allow installation via `npm install -g @impeterwayne/figma-mcp-design` without needing the Go toolchain. The NPM wrapper code exists under `npm/` but the package is **not yet published** to the npm registry.
+> **Note:** An NPM package (`@impeterwayne/figma_mcp_design`) is planned for future distribution. Once published, it will allow installation via `npm install -g @impeterwayne/figma_mcp_design` without needing the Go toolchain. The NPM wrapper code exists under `npm/` but the package is **not yet published** to the npm registry.
 
 ---
 
@@ -55,8 +55,8 @@ Currently, the project must be **built from source**. Follow the [Developer Setu
 ### Step 1: Clone the Repository
 
 ```bash
-git clone https://github.com/impeterwayne/figma-mcp-design.git
-cd figma-mcp-design
+git clone https://github.com/impeterwayne/figma_mcp_design.git
+cd figma_mcp_design
 ```
 
 ### Step 2: Build the Go Backend
@@ -65,11 +65,11 @@ cd figma-mcp-design
 # Download Go dependencies
 go mod download
 
-# Build the binary (outputs to bin/figma-mcp-design)
+# Build the binary (outputs to bin/figma_mcp_design)
 make build-go
 
 # Or without Make:
-go build -o bin/figma-mcp-design ./cmd/figma-mcp-design
+go build -o bin/figma_mcp_design ./cmd/figma_mcp_design
 ```
 
 > **Note:** The root of this repository does NOT have a `package.json`. Running `npm run build` from the root will fail. Use `make build` or build each component separately.
@@ -77,7 +77,7 @@ go build -o bin/figma-mcp-design ./cmd/figma-mcp-design
 #### Setting a Version at Build Time
 
 ```bash
-go build -ldflags "-X main.version=1.0.0" -o bin/figma-mcp-design ./cmd/figma-mcp-design
+go build -ldflags "-X main.version=1.0.0" -o bin/figma_mcp_design ./cmd/figma_mcp_design
 ```
 
 If no version is set, it defaults to `"dev"`.
@@ -125,7 +125,7 @@ The plugin will appear under **Plugins → Development → Figma MCP Design**.
 
 ### For End Users (Published Plugin)
 
-If the plugin is published to the Figma Community, install it directly from there. Check the [project repository](https://github.com/impeterwayne/figma-mcp-design) for the latest installation link.
+If the plugin is published to the Figma Community, install it directly from there. Check the [project repository](https://github.com/impeterwayne/figma_mcp_design) for the latest installation link.
 
 ---
 
@@ -135,10 +135,10 @@ If the plugin is published to the Figma Community, install it directly from ther
 
 ```bash
 # Default: listens on 127.0.0.1:1995
-./bin/figma-mcp-design
+./bin/figma_mcp_design
 
 # Custom IP and port
-./bin/figma-mcp-design --ip 127.0.0.1 --port 3000
+./bin/figma_mcp_design --ip 127.0.0.1 --port 3000
 ```
 
 > **Security warning:** Binding to `0.0.0.0` exposes the server to the network with **no authentication**. Use only on trusted networks.
@@ -189,8 +189,8 @@ Add the following to your Claude Desktop MCP configuration file:
 ```json
 {
   "mcpServers": {
-    "figma-mcp-design": {
-      "command": "/absolute/path/to/bin/figma-mcp-design",
+    "figma_mcp_design": {
+      "command": "/absolute/path/to/bin/figma_mcp_design",
       "args": []
     }
   }
@@ -202,8 +202,8 @@ Add the following to your Claude Desktop MCP configuration file:
 ```json
 {
   "mcpServers": {
-    "figma-mcp-design": {
-      "command": "/absolute/path/to/bin/figma-mcp-design",
+    "figma_mcp_design": {
+      "command": "/absolute/path/to/bin/figma_mcp_design",
       "args": ["--port", "3000"]
     }
   }
@@ -217,9 +217,9 @@ Once the NPM package is published to the registry, you will be able to use:
 ```json
 {
   "mcpServers": {
-    "figma-mcp-design": {
+    "figma_mcp_design": {
       "command": "npx",
-      "args": ["-y", "@impeterwayne/figma-mcp-design"]
+      "args": ["-y", "@impeterwayne/figma_mcp_design"]
     }
   }
 }
@@ -232,8 +232,8 @@ Add to your Cursor MCP settings (`.cursor/mcp.json` in your project or global se
 ```json
 {
   "mcpServers": {
-    "figma-mcp-design": {
-      "command": "/absolute/path/to/bin/figma-mcp-design",
+    "figma_mcp_design": {
+      "command": "/absolute/path/to/bin/figma_mcp_design",
       "args": []
     }
   }
@@ -244,7 +244,7 @@ Add to your Cursor MCP settings (`.cursor/mcp.json` in your project or global se
 
 The server uses standard **MCP over stdio** transport. Configure your client to:
 
-- **Command:** Path to the `figma-mcp-design` binary
+- **Command:** Path to the `figma_mcp_design` binary
 - **Transport:** `stdio`
 - **Arguments:** Optional `--ip` and `--port` flags
 
@@ -276,7 +276,7 @@ The repository root is a Go project — there is no `package.json` at the root. 
 make build
 
 # Or build components separately
-go build -o bin/figma-mcp-design ./cmd/figma-mcp-design   # Go backend
+go build -o bin/figma_mcp_design ./cmd/figma_mcp_design   # Go backend
 cd plugin && bun run build                          # Figma plugin
 ```
 
@@ -296,15 +296,15 @@ cd plugin && bun run build                          # Figma plugin
 ### Binary not found (NPM installation)
 
 ```
-[figma-mcp-design] Binary not found. Try reinstalling: npm install @impeterwayne/figma-mcp-design
+[figma_mcp_design] Binary not found. Try reinstalling: npm install @impeterwayne/figma_mcp_design
 ```
 
 Your platform may not have a pre-built binary. Build from source instead:
 
 ```bash
-git clone https://github.com/impeterwayne/figma-mcp-design.git
-cd figma-mcp-design
-go build -o bin/figma-mcp-design ./cmd/figma-mcp-design
+git clone https://github.com/impeterwayne/figma_mcp_design.git
+cd figma_mcp_design
+go build -o bin/figma_mcp_design ./cmd/figma_mcp_design
 ```
 
 ### Plugin shows "AI is working…" but nothing happens
@@ -345,8 +345,8 @@ The Go server has a 30-second timeout (60 seconds for `get_document`). If the pl
 ## Project Structure Reference
 
 ```
-figma-mcp-design/
-├── cmd/figma-mcp-design/       # Go entry point (main.go)
+figma_mcp_design/
+├── cmd/figma_mcp_design/       # Go entry point (main.go)
 │   └── main.go             # CLI flags, server bootstrap
 ├── internal/               # Go internal packages
 │   ├── bridge.go           # WebSocket connection to plugin
@@ -369,7 +369,7 @@ figma-mcp-design/
 │       ├── serializers.ts   # Figma → JSON conversion
 │       └── ui/              # Svelte UI components
 ├── npm/                    # NPM wrapper package
-│   ├── package.json        # @impeterwayne/figma-mcp-design
+│   ├── package.json        # @impeterwayne/figma_mcp_design
 │   └── bin/
 │       └── run.js          # Platform-detecting binary launcher
 ├── docs/                   # Project documentation

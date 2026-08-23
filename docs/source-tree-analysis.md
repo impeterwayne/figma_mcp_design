@@ -2,14 +2,14 @@
 
 ## Overview
 
-This document outlines the directory structure of the **figma-mcp-design** monorepo, covering only version-controlled files.
+This document outlines the directory structure of the **figma_mcp_design** monorepo, covering only version-controlled files.
 
 ## Directory Tree
 
 ```text
-figma-mcp-design/
+figma_mcp_design/
 ├── cmd/
-│   └── figma-mcp-design/
+│   └── figma_mcp_design/
 │       └── main.go              # Go entry point (flag parsing, startup)
 ├── internal/
 │   ├── bridge.go                # WebSocket bridge to Figma Plugin
@@ -116,7 +116,7 @@ figma-mcp-design/
 
 | Part          | Entry Point                | Build Output |
 |---------------|----------------------------|--------------|
-| Go Backend    | `cmd/figma-mcp-design/main.go` | `bin/figma-mcp-design` binary (git-ignored) |
+| Go Backend    | `cmd/figma_mcp_design/main.go` | `bin/figma_mcp_design` binary (git-ignored) |
 | Plugin UI     | `plugin/src/ui/main.ts`    | `plugin/dist/index.html` (git-ignored) |
 | Plugin Core   | `plugin/src/main.ts`       | `plugin/dist/code.js` (git-ignored) |
 | NPM CLI       | `npm/bin/run.js`           | Spawns Go binary |

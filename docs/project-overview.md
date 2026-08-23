@@ -1,8 +1,8 @@
-# Project Overview: figma-mcp-design
+# Project Overview: figma_mcp_design
 
 ## Executive Summary
 
-**figma-mcp-design** is a full-featured Model Context Protocol (MCP) server for Figma. It enables AI models (LLMs) to read, write, modify, and export Figma documents — with zero API token required and no rate limits. The server communicates with Figma through a companion plugin that runs inside the Figma Desktop or Web app.
+**figma_mcp_design** is a full-featured Model Context Protocol (MCP) server for Figma. It enables AI models (LLMs) to read, write, modify, and export Figma documents — with zero API token required and no rate limits. The server communicates with Figma through a companion plugin that runs inside the Figma Desktop or Web app.
 
 The project is authored by [@impeterwayne](https://github.com/impeterwayne) and licensed under MIT.
 

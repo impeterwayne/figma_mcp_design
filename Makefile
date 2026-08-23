@@ -3,7 +3,7 @@
 build: build-go build-ts
 
 build-go:
-	go build -o bin/figma-mcp-design ./cmd/figma-mcp-design
+	go build -o bin/figma_mcp_design ./cmd/figma_mcp_design
 
 build-ts:
 	cd plugin && bun run build

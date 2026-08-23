@@ -1,10 +1,10 @@
 {
-  "name": "@impeterwayne/figma-mcp-design",
-  "version": "0.0.1-alpha",
+  "name": "@impeterwayne/figma_mcp_design",
+  "version": "1.0.0",
   "description": "A zero-cost, unlimited Figma MCP server — no API key, no rate limits",
-  "mcpName": "io.github.impeterwayne/figma-mcp-design",
+  "mcpName": "io.github.impeterwayne/figma_mcp_design",
   "bin": {
-    "figma-mcp-design": "bin/run.js"
+    "figma_mcp_design": "bin/run.js"
   },
   "files": [
     "bin/run.js",
@@ -25,11 +25,11 @@
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/impeterwayne/figma-mcp-design.git"
+    "url": "git+https://github.com/impeterwayne/figma_mcp_design.git"
   },
-  "homepage": "https://github.com/impeterwayne/figma-mcp-design#readme",
+  "homepage": "https://github.com/impeterwayne/figma_mcp_design#readme",
   "bugs": {
-    "url": "https://github.com/impeterwayne/figma-mcp-design/issues"
+    "url": "https://github.com/impeterwayne/figma_mcp_design/issues"
   },
   "engines": {
     "node": ">=18.0.0"

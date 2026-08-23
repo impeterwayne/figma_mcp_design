@@ -3,7 +3,8 @@
   "configVersion": 1,
   "workspaces": {
     "": {
-      "name": "figma-mcp-design-plugin",
+      "name": "figma_mcp_design_plugin",
+      "version": "1.0.0",
       "devDependencies": {
         "@figma/plugin-typings": "^1",
         "@sveltejs/vite-plugin-svelte": "^5",

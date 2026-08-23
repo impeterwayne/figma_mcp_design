@@ -1,7 +1,7 @@
 {
   "mcpServers": {
-    "figma-mcp-design": {
-      "command": "D:/Quest/figma_mcp_design/bin/figma-mcp-design.exe",
+    "figma_mcp_design": {
+      "command": "D:/Quest/figma_mcp_design/bin/figma_mcp_design.exe",
       "args": []
     }
   }

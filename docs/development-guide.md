@@ -14,7 +14,7 @@
 ```bash
 go mod download
 make build-go
-# or: go build -o bin/figma-mcp-design ./cmd/figma-mcp-design
+# or: go build -o bin/figma_mcp_design ./cmd/figma_mcp_design
 ```
 
 ### 2. Figma Plugin
@@ -48,8 +48,8 @@ npm install
 ## Running the Server
 
 ```bash
-./bin/figma-mcp-design                          # default localhost:1995
-./bin/figma-mcp-design --ip 127.0.0.1 --port 3000  # custom
+./bin/figma_mcp_design                          # default localhost:1995
+./bin/figma_mcp_design --ip 127.0.0.1 --port 3000  # custom
 ```
 
 ## Architecture Notes for Contributors

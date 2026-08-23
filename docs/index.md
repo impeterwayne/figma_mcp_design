@@ -2,7 +2,7 @@
 
 ## Project Overview
 
-- **Project**: figma-mcp-design
+- **Project**: figma_mcp_design
 - **Type**: Multi-part monorepo (3 parts)
 - **Language**: Go + TypeScript
 - **Architecture**: MCP Server (Leader/Follower) + Figma Plugin + NPM CLI wrapper

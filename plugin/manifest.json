@@ -1,6 +1,6 @@
 {
   "name": "Figma MCP Design",
-  "id": "figma-mcp-design",
+  "id": "figma_mcp_design",
   "api": "1.0.0",
   "main": "dist/code.js",
   "ui": "dist/index.html",

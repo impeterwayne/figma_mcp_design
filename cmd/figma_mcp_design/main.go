@@ -11,12 +11,12 @@ import (
 
 	"github.com/mark3labs/mcp-go/server"
 
-	"github.com/impeterwayne/figma-mcp-design/internal"
+	"github.com/impeterwayne/figma_mcp_design/internal"
 )
 
-// version is injected at build time:
-// go build -ldflags "-X main.version=1.0.0" ./cmd/figma-mcp-design
-var version = "dev"
+// version is injected at build time (defaults to "1.0.0"):
+// go build -ldflags "-X main.version=1.0.0" ./cmd/figma_mcp_design
+var version = "1.0.0"
 
 var logger = log.New(os.Stderr, "", 0)
 

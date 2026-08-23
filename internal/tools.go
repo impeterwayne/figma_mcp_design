@@ -10,7 +10,7 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/impeterwayne/figma-mcp-design/internal/prompts"
+	"github.com/impeterwayne/figma_mcp_design/internal/prompts"
 	"github.com/mark3labs/mcp-go/mcp"
 	"github.com/mark3labs/mcp-go/server"
 )

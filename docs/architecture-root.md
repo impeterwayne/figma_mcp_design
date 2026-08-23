@@ -14,7 +14,7 @@ The Root Go App is the MCP server that bridges AI/LLM tool calls to the Figma Pl
 
 ## Key Architectural Components
 
-### Entry Point (`cmd/figma-mcp-design/main.go`)
+### Entry Point (`cmd/figma_mcp_design/main.go`)
 
 The binary accepts `--ip` (default `127.0.0.1`) and `--port` (default `1995`) flags. On startup it:
 
