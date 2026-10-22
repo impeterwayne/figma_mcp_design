@@ -6,7 +6,7 @@ A Go stdio MCP server that connects AI clients to a local Figma Desktop plugin o
 
 This repo contains three cooperating pieces:
 
-- an MCP server exposing 79 tools and 18 design-system prompts over stdio
+- an MCP server exposing 85 tools and 18 design-system prompts over stdio
 - a Figma Desktop plugin that talks to the server on `ws://127.0.0.1:1995` by default
 - a suite of agent skills (`.agents/skills/`) for UI/UX design, design systems, branding, banners, slides, and Figma workflows
 
@@ -15,7 +15,7 @@ This repo contains three cooperating pieces:
 - Full read/write bridge from AI clients to live Figma documents
 - No Figma REST API key required and no rate limits
 - Local plugin connection over WebSocket (`ws://127.0.0.1:1995`) with automatic Leader/Follower multi-instance support
-- 79 exposed tools for document inspection, node creation, layout & property editing, styles, variables, components, pages, prototypes, and exports
+- 85 exposed tools for document inspection, node creation, layout & property editing, styles, variables, components, pages, prototypes, and exports
 - 18 built-in MCP prompts for design strategy, token naming standards, accessibility audits (WCAG), and design-system refactoring
 - Design token export support (JSON and CSS custom properties)
 - Screenshot and multi-page PDF export helpers, including direct file saves
@@ -100,9 +100,23 @@ This server depends on the local plugin bridge.
 1. Download the latest `figma_design_skills.zip` from the [releases](https://github.com/impeterwayne/figma_mcp_design/releases) page (or copy `.agents/skills/` from this repository).
 2. Extract it into your workspace `.agents/skills/` directory to give your coding agent built-in skills for Figma auto-layout workflows, UI/UX design intelligence, design token architecture, brand guidelines, banner generation, and HTML slide decks.
 
+## Tool profiles
+
+Every tool schema is loaded into the AI client's context each session. Pick the smallest profile that fits the task with `--profile`:
+
+| Profile | Tools | Schema size | Use for |
+|---------|-------|-------------|---------|
+| `full` (default) | 85 | ~66 KB | Everything, including prototyping, PDF export and bulk renaming |
+| `design` | 62 | ~50 KB | Building and editing UI, design systems and components |
+| `read` | 22 | ~14 KB | Inspecting, reviewing and exporting; no write tools |
+
+```json
+"args": ["--profile", "design"]
+```
+
 ## Available tools
 
-79 tools — 21 read/export tools and 58 write/automation tools against your live Figma document.
+85 tools — 21 read/export tools and 64 write/automation tools against your live Figma document.
 
 ### Document and node inspection
 
@@ -150,13 +164,16 @@ This server depends on the local plugin bridge.
 | `create_ellipse` | Creates an ellipse or circle with optional fill color. |
 | `create_text` | Creates a text node, automatically loading the requested font family and style. |
 | `import_image` | Imports a base64-encoded PNG or JPG image into Figma as an image-filled node. |
+| `create_instance` | Creates an instance of a component (or a component set's default variant) inside a parent, optionally setting its properties. |
 | `create_component` | Converts an existing FRAME node into a reusable COMPONENT in place. |
 
 ### Node modification and layout
 
 | Tool | What it does |
 |------|--------------|
-| `set_text` | Updates the text copy of an existing TEXT node. |
+| `set_text` | Updates the text copy of a TEXT node, or of many nodes in one call via `items`. |
+| `set_text_properties` | Changes typography on one or more TEXT nodes: font family/style, size, line height, letter spacing, alignment, case, decoration, auto-resize. |
+| `set_image_fill` | Fills one or more existing nodes with a base64 image (`FILL`, `FIT`, `CROP`, `TILE`). |
 | `find_replace_text` | Finds and replaces text (plain string or regex) across all TEXT nodes in a subtree or page. |
 | `set_fills` | Sets or appends a solid fill color (`#RRGGBB` or `#RRGGBBAA`) and opacity on a node. |
 | `set_strokes` | Sets or appends a stroke color and stroke weight on a node. |
@@ -191,6 +208,8 @@ This server depends on the local plugin bridge.
 | `delete_style` | Deletes a local style by ID. |
 | `apply_style_to_node` | Links an existing paint, text, effect, or grid style to a node. |
 | `set_effects` | Applies drop shadow, inner shadow, or blur effects directly to a node. |
+| `replace_colors` | Recolours a whole subtree in one call: maps hex colours (fills, strokes, gradient stops, shadows, per-range text colours) to variables or new hex values. `dryRun` lists colours in use; `nodeTypes` limits it to e.g. TEXT. |
+| `snap_to_tokens` | Binds auto-layout padding/gap and corner radii in a subtree to the nearest spacing/radius variables (pills use the full radius). `dryRun` reports value changes. |
 | `bind_variable_to_node` | Binds a local variable (`COLOR`, `FLOAT`, `BOOLEAN`) to a node property (fills, strokes, spacing, radius, etc.). |
 | `set_description` | Sets or clears documentation text on a component, component set, style, or variable. |
 
@@ -215,6 +234,7 @@ This server depends on the local plugin bridge.
 | `group_nodes` | Groups two or more sibling nodes into a `GROUP`. |
 | `ungroup_nodes` | Ungroups one or more `GROUP` nodes, moving their children into the parent. |
 | `swap_component` | Swaps the main component of an `INSTANCE` node while preserving position and bounds. |
+| `set_instance_properties` | Sets variant, boolean, and text properties on an instance by display name (e.g. `Size`, `Label`). |
 | `detach_instance` | Detaches one or more component instances into plain frames. |
 | `navigate_to_page` | Switches the active Figma page by `pageId` or `pageName`. |
 | `add_page` | Adds a new page to the Figma document at an optional index. |

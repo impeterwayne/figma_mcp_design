@@ -6,7 +6,7 @@ MCP server viết bằng Go, giao tiếp qua stdio, giúp các AI client đọc 
 
 Repo gồm ba phần hoạt động cùng nhau:
 
-- MCP server cung cấp 79 tool và 18 prompt thiết kế qua stdio
+- MCP server cung cấp 85 tool và 18 prompt thiết kế qua stdio
 - plugin Figma Desktop kết nối tới server tại `ws://127.0.0.1:1995` (mặc định)
 - bộ kỹ năng cho AI agent (`.agents/skills/`) phục vụ thiết kế UI/UX, design system, nhận diện thương hiệu, banner, slide và quy trình làm việc trên Figma
 
@@ -15,7 +15,7 @@ Repo gồm ba phần hoạt động cùng nhau:
 - Cho phép AI client đọc và chỉnh sửa trực tiếp (full read/write) file Figma đang mở
 - Không cần Figma REST API key, không giới hạn số lần gọi
 - Plugin kết nối nội bộ qua WebSocket (`ws://127.0.0.1:1995`), hỗ trợ nhiều AI client chạy song song qua cơ chế Leader/Follower
-- 79 tool để duyệt tài liệu, tạo mới, chỉnh sửa bố cục & thuộc tính, quản lý style, variable, component, page, prototype và xuất file
+- 85 tool để duyệt tài liệu, tạo mới, chỉnh sửa bố cục & thuộc tính, quản lý style, variable, component, page, prototype và xuất file
 - 18 MCP prompt tích hợp sẵn cho chiến lược thiết kế, chuẩn đặt tên token, kiểm tra trợ năng (WCAG) và tái cấu trúc design system
 - Xuất design token ra JSON hoặc CSS custom properties
 - Chụp ảnh màn hình node (lưu thẳng ra file) và xuất nhiều frame thành một file PDF nhiều trang
@@ -100,9 +100,23 @@ Không có plugin thì server không giao tiếp được với Figma, nên bư�
 1. Tải `figma_design_skills.zip` ở trang [releases](https://github.com/impeterwayne/figma_mcp_design/releases) (hoặc chép thư mục `.agents/skills/` trong repo này).
 2. Giải nén vào thư mục `.agents/skills/` của project để trang bị thêm cho AI các quy trình dựng thiết kế Figma chuẩn auto-layout, tra cứu UI/UX, kiến trúc design token, bộ nhận diện thương hiệu, thiết kế banner và thuyết trình HTML.
 
+## Profile tool
+
+Mô tả của mọi tool được nạp vào ngữ cảnh của AI ở mỗi phiên. Dùng `--profile` để chỉ nạp bộ tool cần thiết:
+
+| Profile | Số tool | Dung lượng schema | Dùng khi |
+|---------|---------|-------------------|----------|
+| `full` (mặc định) | 85 | ~66 KB | Mọi việc, kể cả prototype, xuất PDF, đổi tên hàng loạt |
+| `design` | 62 | ~50 KB | Dựng và chỉnh UI, design system, component |
+| `read` | 22 | ~14 KB | Đọc, review, xuất ảnh; không có tool ghi |
+
+```json
+"args": ["--profile", "design"]
+```
+
 ## Danh sách tool
 
-79 tool — gồm 21 tool đọc/xuất dữ liệu và 58 tool tạo mới/chỉnh sửa trực tiếp trên tài liệu Figma.
+85 tool — gồm 21 tool đọc/xuất dữ liệu và 64 tool tạo mới/chỉnh sửa trực tiếp trên tài liệu Figma.
 
 ### Duyệt documents và node
 
@@ -150,13 +164,16 @@ Không có plugin thì server không giao tiếp được với Figma, nên bư�
 | `create_ellipse` | Tạo hình elip hoặc hình tròn kèm màu nền tùy chọn. |
 | `create_text` | Tạo node văn bản, tự động nạp font family và font style trước khi chèn. |
 | `import_image` | Chèn ảnh PNG/JPG dạng base64 vào Figma dưới dạng node có image fill. |
+| `create_instance` | Tạo instance của một component (hoặc variant mặc định của component set) bên trong một parent, có thể đặt luôn các thuộc tính. |
 | `create_component` | Chuyển đổi một node FRAME có sẵn thành COMPONENT tái sử dụng ngay tại vị trí đó. |
 
 ### Chỉnh sửa node và bố cục (Layout)
 
 | Tool | Chức năng |
 |------|-----------|
-| `set_text` | Cập nhật nội dung chữ của một node TEXT có sẵn. |
+| `set_text` | Cập nhật nội dung chữ của một node TEXT, hoặc của nhiều node trong một lần gọi qua `items`. |
+| `set_text_properties` | Chỉnh typography cho một hoặc nhiều node TEXT: font, cỡ chữ, line height, letter spacing, căn lề, kiểu chữ hoa/thường, gạch chân, auto-resize. |
+| `set_image_fill` | Gắn ảnh base64 làm fill cho một hoặc nhiều node có sẵn (`FILL`, `FIT`, `CROP`, `TILE`). |
 | `find_replace_text` | Tìm và thay thế văn bản (chuỗi thường hoặc regex) trên toàn bộ node TEXT trong một nhánh hoặc cả page. |
 | `set_fills` | Đặt mới hoặc chồng thêm (append) màu nền (`#RRGGBB` / `#RRGGBBAA`) và độ mờ cho một node. |
 | `set_strokes` | Đặt mới hoặc chồng thêm màu viền và độ dày viền cho một node. |
@@ -191,6 +208,8 @@ Không có plugin thì server không giao tiếp được với Figma, nên bư�
 | `delete_style` | Xóa một style theo ID. |
 | `apply_style_to_node` | Gắn một style (paint, text, effect, grid) có sẵn vào node. |
 | `set_effects` | Áp dụng trực tiếp danh sách hiệu ứng (shadow, blur) lên một node. |
+| `replace_colors` | Đổi màu cả cây node trong một lần gọi: ánh xạ mã hex (fill, stroke, điểm gradient, shadow, màu theo đoạn chữ) sang variable hoặc mã hex mới. `dryRun` liệt kê màu đang dùng; `nodeTypes` giới hạn loại lớp, ví dụ TEXT. |
+| `snap_to_tokens` | Gắn padding/gap auto-layout và bo góc trong cây node vào variable spacing/radius gần nhất (dạng viên thuốc dùng radius full). `dryRun` báo các giá trị sẽ đổi. |
 | `bind_variable_to_node` | Liên kết một variable (`COLOR`, `FLOAT`, `BOOLEAN`) vào thuộc tính của node (màu, khoảng cách, bo góc, kích thước...). |
 | `set_description` | Đặt hoặc xóa nội dung mô tả (description) trên component, component set, style hoặc variable. |
 
@@ -215,6 +234,7 @@ Không có plugin thì server không giao tiếp được với Figma, nên bư�
 | `group_nodes` | Gom hai hoặc nhiều node cùng cấp thành một `GROUP`. |
 | `ungroup_nodes` | Rã nhóm một hoặc nhiều `GROUP`, đưa các node con ra ngoài node cha. |
 | `swap_component` | Hoán đổi component gốc của một `INSTANCE` sang component khác mà vẫn giữ nguyên vị trí và kích thước. |
+| `set_instance_properties` | Đặt thuộc tính variant, boolean và text cho instance theo tên hiển thị (ví dụ `Size`, `Label`). |
 | `detach_instance` | Tách một hoặc nhiều component instance thành frame thường. |
 | `navigate_to_page` | Chuyển sang page khác trong file theo `pageId` hoặc `pageName`. |
 | `add_page` | Thêm page mới vào tài liệu Figma tại vị trí tùy chọn. |

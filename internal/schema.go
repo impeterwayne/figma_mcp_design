@@ -3,6 +3,7 @@ package internal
 import (
 	"fmt"
 	"regexp"
+	"strconv"
 	"strings"
 )
 
@@ -281,6 +282,19 @@ func ValidateRPC(tool string, nodeIDs []string, params map[string]interface{}) s
 		}
 
 	case "set_text":
+		if items, ok := params["items"].([]interface{}); ok && len(items) > 0 {
+			for i, it := range items {
+				m, _ := it.(map[string]interface{})
+				id, _ := m["nodeId"].(string)
+				if !ValidNodeID(id) {
+					return fmt.Sprintf("items[%d].nodeId must use colon format e.g. 4029:12345, got: %s", i, id)
+				}
+				if _, ok := m["text"].(string); !ok {
+					return fmt.Sprintf("items[%d].text is required", i)
+				}
+			}
+			break
+		}
 		if len(nodeIDs) == 0 || nodeIDs[0] == "" {
 			return "nodeId is required"
 		}
@@ -289,6 +303,105 @@ func ValidateRPC(tool string, nodeIDs []string, params map[string]interface{}) s
 		}
 		if _, ok := params["text"].(string); !ok {
 			return "text is required"
+		}
+
+	case "set_text_properties":
+		if len(nodeIDs) == 0 {
+			return "nodeIds is required and must not be empty"
+		}
+		for _, id := range nodeIDs {
+			if !ValidNodeID(id) {
+				return fmt.Sprintf("invalid nodeId: %s — must use colon format e.g. 4029:12345", id)
+			}
+		}
+		set := 0
+		for _, key := range textPropertyKeys {
+			if _, ok := params[key]; ok {
+				set++
+			}
+		}
+		if set == 0 {
+			return "at least one text property is required"
+		}
+		for key, allowed := range textPropertyEnums {
+			if v, ok := params[key].(string); ok && !containsString(allowed, v) {
+				return fmt.Sprintf("%s must be one of %v, got: %s", key, allowed, v)
+			}
+		}
+
+	case "snap_to_tokens":
+		if len(nodeIDs) == 0 || nodeIDs[0] == "" {
+			return "nodeId is required"
+		}
+		if !ValidNodeID(nodeIDs[0]) {
+			return fmt.Sprintf("nodeId must use colon format e.g. 0:1, got: %s", nodeIDs[0])
+		}
+		for _, key := range []string{"spacingVariables", "radiusVariables"} {
+			m, _ := params[key].(map[string]interface{})
+			if len(m) == 0 {
+				return key + " is required and must not be empty"
+			}
+			for k := range m {
+				if _, err := strconv.ParseFloat(k, 64); err != nil {
+					return fmt.Sprintf("%s keys must be pixel values, got: %s", key, k)
+				}
+			}
+		}
+
+	case "replace_colors":
+		if len(nodeIDs) == 0 || nodeIDs[0] == "" {
+			return "nodeId is required"
+		}
+		if !ValidNodeID(nodeIDs[0]) {
+			return fmt.Sprintf("nodeId must use colon format e.g. 0:1, got: %s", nodeIDs[0])
+		}
+		if dry, _ := params["dryRun"].(bool); dry {
+			break
+		}
+		mappings, _ := params["mappings"].([]interface{})
+		if len(mappings) == 0 {
+			return "mappings is required unless dryRun is true"
+		}
+		for i, it := range mappings {
+			m, _ := it.(map[string]interface{})
+			if from, _ := m["from"].(string); !hexColorRe.MatchString(from) {
+				return fmt.Sprintf("mappings[%d].from must be #RRGGBB, got: %v", i, m["from"])
+			}
+			vid, _ := m["variableId"].(string)
+			color, _ := m["color"].(string)
+			gradient, hasGradient := m["gradient"].([]interface{})
+			if vid == "" && color == "" && !hasGradient {
+				return fmt.Sprintf("mappings[%d] needs variableId, color or gradient", i)
+			}
+			if hasGradient {
+				if len(gradient) < 2 || len(gradient) > 4 {
+					return fmt.Sprintf("mappings[%d].gradient needs 2 to 4 colours", i)
+				}
+				for _, g := range gradient {
+					if hex, _ := g.(string); !hexColorRe.MatchString(hex) {
+						return fmt.Sprintf("mappings[%d].gradient colours must be #RRGGBB, got: %v", i, g)
+					}
+				}
+			}
+			if color != "" && !hexColorRe.MatchString(color) {
+				return fmt.Sprintf("mappings[%d].color must be #RRGGBB, got: %s", i, color)
+			}
+		}
+
+	case "set_image_fill":
+		if imageData, _ := params["imageData"].(string); imageData == "" {
+			return "imageData (base64) is required"
+		}
+		if len(nodeIDs) == 0 {
+			return "nodeIds is required and must not be empty"
+		}
+		for _, id := range nodeIDs {
+			if !ValidNodeID(id) {
+				return fmt.Sprintf("invalid nodeId: %s — must use colon format e.g. 4029:12345", id)
+			}
+		}
+		if sm, ok := params["scaleMode"].(string); ok && sm != "" && !containsString([]string{"FILL", "FIT", "CROP", "TILE"}, sm) {
+			return fmt.Sprintf("scaleMode must be FILL, FIT, CROP, or TILE, got: %s", sm)
 		}
 
 	case "set_fills":
@@ -572,6 +685,29 @@ func ValidateRPC(tool string, nodeIDs []string, params map[string]interface{}) s
 		}
 		if cid, _ := params["componentId"].(string); cid != "" && !ValidNodeID(cid) {
 			return fmt.Sprintf("componentId must use colon format e.g. 4029:12345, got: %s", cid)
+		}
+
+	case "create_instance":
+		cid, _ := params["componentId"].(string)
+		if cid == "" {
+			return "componentId is required"
+		}
+		if !ValidNodeID(cid) {
+			return fmt.Sprintf("componentId must use colon format e.g. 4029:12345, got: %s", cid)
+		}
+		if pid, ok := params["parentId"].(string); ok && pid != "" && !ValidNodeID(pid) {
+			return fmt.Sprintf("parentId must use colon format e.g. 4029:12345, got: %s", pid)
+		}
+
+	case "set_instance_properties":
+		if len(nodeIDs) == 0 || nodeIDs[0] == "" {
+			return "nodeId is required"
+		}
+		if !ValidNodeID(nodeIDs[0]) {
+			return fmt.Sprintf("nodeId must use colon format e.g. 4029:12345, got: %s", nodeIDs[0])
+		}
+		if props, _ := params["properties"].(map[string]interface{}); len(props) == 0 {
+			return "properties is required and must not be empty"
 		}
 
 	case "detach_instance":
@@ -974,3 +1110,23 @@ func validExportFormat(f string) bool {
 	}
 	return false
 }
+
+// textPropertyEnums lists the allowed values of enum-typed set_text_properties arguments.
+var textPropertyEnums = map[string][]string{
+	"textAlignHorizontal": {"LEFT", "CENTER", "RIGHT", "JUSTIFIED"},
+	"textAlignVertical":   {"TOP", "CENTER", "BOTTOM"},
+	"textCase":            {"ORIGINAL", "UPPER", "LOWER", "TITLE", "SMALL_CAPS", "SMALL_CAPS_FORCED"},
+	"textDecoration":      {"NONE", "UNDERLINE", "STRIKETHROUGH"},
+	"textAutoResize":      {"NONE", "WIDTH_AND_HEIGHT", "HEIGHT", "TRUNCATE"},
+}
+
+func containsString(list []string, v string) bool {
+	for _, s := range list {
+		if s == v {
+			return true
+		}
+	}
+	return false
+}
+
+var hexColorRe = regexp.MustCompile(`^#[0-9A-Fa-f]{6}$`)

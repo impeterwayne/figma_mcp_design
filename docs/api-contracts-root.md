@@ -60,7 +60,11 @@ This document details the complete set of tools exposed by the Go Model Context 
 - `import_image`: Import a base64-encoded image into Figma as a rectangle with an image fill.
 
 ## Node Modification
-- `set_text`: Update the text content of an existing TEXT node.
+- `set_text`: Update the text content of a TEXT node, or of many nodes via `items: [{nodeId, text}]`.
+- `set_text_properties`: Change typography (font, size, line height, letter spacing, alignment, case, decoration, auto-resize) on one or more TEXT nodes.
+- `set_image_fill`: Fill existing nodes with a base64 image.
+- `replace_colors`: Map hex colours across a subtree (fills, strokes, gradient stops, shadows, text ranges) to variables or hex; `dryRun`, `includeInstances`, `nodeTypes`.
+- `snap_to_tokens`: Bind auto-layout spacing and corner radii in a subtree to the nearest spacing/radius variables; values far above the scale are kept.
 - `set_fills`: Set the fill color on a single node. Use mode='append' to stack a new fill.
 - `set_strokes`: Set the stroke color and weight on a single node.
 - `set_opacity`: Set the opacity of one or more nodes (0 = fully transparent, 1 = fully opaque).
@@ -88,6 +92,8 @@ This document details the complete set of tools exposed by the Go Model Context 
 - `lock_nodes`: Lock one or more nodes to prevent accidental edits in Figma.
 - `unlock_nodes`: Unlock one or more nodes, allowing them to be edited again.
 - `swap_component`: Swap the main component of an existing INSTANCE node.
+- `create_instance`: Create an instance of a COMPONENT or COMPONENT_SET default variant inside a parent, with optional properties.
+- `set_instance_properties`: Set variant/boolean/text properties on an INSTANCE by display name.
 - `detach_instance`: Detach one or more component instances, converting them to plain frames.
 
 ## Page Management

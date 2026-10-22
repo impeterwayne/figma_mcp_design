@@ -9,19 +9,96 @@ import (
 
 func registerWriteModifyTools(s *server.MCPServer, node *Node) {
 	s.AddTool(mcp.NewTool("set_text",
-		mcp.WithDescription("Update the text content of an existing TEXT node."),
+		mcp.WithDescription("Update the text content of TEXT nodes. Either pass nodeId + text for one node, or items to update many nodes in one call."),
 		mcp.WithString("nodeId",
-			mcp.Required(),
-			mcp.Description("TEXT node ID in colon format e.g. '4029:12345'"),
+			mcp.Description("TEXT node ID in colon format e.g. '4029:12345' (single-node form)"),
 		),
 		mcp.WithString("text",
-			mcp.Required(),
-			mcp.Description("New text content"),
+			mcp.Description("New text content (single-node form)"),
+		),
+		mcp.WithArray("items",
+			mcp.Description("Batch form: [{\"nodeId\":\"1:2\",\"text\":\"Sign in\"}, ...]. Errors are reported per item."),
+			mcp.Items(map[string]any{
+				"type": "object",
+				"properties": map[string]any{
+					"nodeId": map[string]any{"type": "string", "description": "TEXT node ID in colon format"},
+					"text":   map[string]any{"type": "string", "description": "New text content"},
+				},
+				"required": []string{"nodeId", "text"},
+			}),
 		),
 	), func(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-		nodeID, _ := req.GetArguments()["nodeId"].(string)
-		text, _ := req.GetArguments()["text"].(string)
+		args := req.GetArguments()
+		if raw, ok := args["items"].([]interface{}); ok && len(raw) > 0 {
+			for _, it := range raw {
+				if m, ok := it.(map[string]interface{}); ok {
+					if id, ok := m["nodeId"].(string); ok {
+						m["nodeId"] = NormalizeNodeID(id)
+					}
+				}
+			}
+			resp, err := node.Send(ctx, "set_text", nil, map[string]interface{}{"items": raw})
+			return renderResponse(resp, err)
+		}
+		nodeID, _ := args["nodeId"].(string)
+		text, ok := args["text"].(string)
+		if nodeID == "" || !ok {
+			return mcp.NewToolResultError("pass nodeId and text, or items"), nil
+		}
 		resp, err := node.Send(ctx, "set_text", []string{nodeID}, map[string]interface{}{"text": text})
+		return renderResponse(resp, err)
+	})
+
+	s.AddTool(mcp.NewTool("set_text_properties",
+		mcp.WithDescription("Change typography on one or more existing TEXT nodes in one call: font family/style, size, line height, letter spacing, alignment, case, decoration, auto-resize. Only the properties you pass are changed. Prefer apply_style_to_node when a matching text style exists."),
+		mcp.WithArray("nodeIds",
+			mcp.Required(),
+			mcp.Description("TEXT node IDs in colon format e.g. ['4029:12345']"),
+			mcp.WithStringItems(),
+		),
+		mcp.WithString("fontFamily", mcp.Description("Font family e.g. 'Inter'. Keeps the current style unless fontStyle is set.")),
+		mcp.WithString("fontStyle", mcp.Description("Font style/weight name e.g. 'Regular', 'Medium', 'Semi Bold', 'Bold'")),
+		mcp.WithNumber("fontSize", mcp.Description("Font size in px")),
+		mcp.WithString("lineHeight", mcp.Description("Pixels as a number (24), percent string ('150%'), or 'AUTO'")),
+		mcp.WithString("letterSpacing", mcp.Description("Pixels as a number (0.5) or percent string ('-2%')")),
+		mcp.WithString("textAlignHorizontal", mcp.Description("LEFT, CENTER, RIGHT, or JUSTIFIED")),
+		mcp.WithString("textAlignVertical", mcp.Description("TOP, CENTER, or BOTTOM")),
+		mcp.WithString("textCase", mcp.Description("ORIGINAL, UPPER, LOWER, TITLE, SMALL_CAPS, or SMALL_CAPS_FORCED")),
+		mcp.WithString("textDecoration", mcp.Description("NONE, UNDERLINE, or STRIKETHROUGH")),
+		mcp.WithString("textAutoResize", mcp.Description("NONE, WIDTH_AND_HEIGHT, HEIGHT, or TRUNCATE")),
+	), func(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+		args := req.GetArguments()
+		raw, _ := args["nodeIds"].([]interface{})
+		params := map[string]interface{}{}
+		for _, key := range textPropertyKeys {
+			if v, ok := args[key]; ok && v != nil && v != "" {
+				params[key] = v
+			}
+		}
+		resp, err := node.Send(ctx, "set_text_properties", toStringSlice(raw), params)
+		return renderResponse(resp, err)
+	})
+
+	s.AddTool(mcp.NewTool("set_image_fill",
+		mcp.WithDescription("Fill one or more existing nodes (frame, rectangle, ellipse…) with an image, replacing their fills. Use this to put photos/illustrations into layout placeholders; use import_image to create a new image node."),
+		mcp.WithArray("nodeIds",
+			mcp.Required(),
+			mcp.Description("Node IDs in colon format e.g. ['4029:12345']"),
+			mcp.WithStringItems(),
+		),
+		mcp.WithString("imageData",
+			mcp.Required(),
+			mcp.Description("Base64-encoded PNG or JPG image data"),
+		),
+		mcp.WithString("scaleMode", mcp.Description("FILL (default, crop to cover), FIT, CROP, or TILE")),
+	), func(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+		args := req.GetArguments()
+		raw, _ := args["nodeIds"].([]interface{})
+		params := map[string]interface{}{"imageData": args["imageData"]}
+		if sm, ok := args["scaleMode"].(string); ok && sm != "" {
+			params["scaleMode"] = sm
+		}
+		resp, err := node.Send(ctx, "set_image_fill", toStringSlice(raw), params)
 		return renderResponse(resp, err)
 	})
 
@@ -468,4 +545,10 @@ func registerWriteModifyTools(s *server.MCPServer, node *Node) {
 		resp, err := node.Send(ctx, "find_replace_text", nodeIDs, params)
 		return renderResponse(resp, err)
 	})
+}
+
+// textPropertyKeys lists the set_text_properties arguments forwarded to the plugin.
+var textPropertyKeys = []string{
+	"fontFamily", "fontStyle", "fontSize", "lineHeight", "letterSpacing",
+	"textAlignHorizontal", "textAlignVertical", "textCase", "textDecoration", "textAutoResize",
 }

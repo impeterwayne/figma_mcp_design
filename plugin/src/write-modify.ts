@@ -1,19 +1,33 @@
 import { getBounds } from "./serializers";
-import { makeSolidPaint, getParentNode, applyAutoLayout } from "./write-helpers";
+import { makeSolidPaint, getParentNode, applyAutoLayout, loadNodeFonts, parseTextMeasure, base64ToBytes } from "./write-helpers";
 
 export const handleWriteModifyRequest = async (request: any) => {
   switch (request.type) {
     case "set_text": {
       const p = request.params || {};
+      if (Array.isArray(p.items)) {
+        const results: any[] = [];
+        for (const item of p.items) {
+          const n = await figma.getNodeByIdAsync(item.nodeId) as any;
+          if (!n) { results.push({ nodeId: item.nodeId, error: "Node not found" }); continue; }
+          if (n.type !== "TEXT") { results.push({ nodeId: item.nodeId, error: "Node is not a TEXT node" }); continue; }
+          try {
+            await loadNodeFonts(n);
+            n.characters = String(item.text);
+            results.push({ nodeId: n.id, name: n.name, characters: n.characters });
+          } catch (err) {
+            results.push({ nodeId: item.nodeId, error: err instanceof Error ? err.message : String(err) });
+          }
+        }
+        figma.commitUndo();
+        return { type: request.type, requestId: request.requestId, data: { results } };
+      }
       const nodeId = request.nodeIds && request.nodeIds[0];
       if (!nodeId) throw new Error("nodeId is required");
       const node = await figma.getNodeByIdAsync(nodeId);
       if (!node) throw new Error(`Node not found: ${nodeId}`);
       if (node.type !== "TEXT") throw new Error(`Node ${nodeId} is not a TEXT node`);
-      const fontName = typeof node.fontName === "symbol"
-        ? { family: "Inter", style: "Regular" }
-        : node.fontName;
-      await figma.loadFontAsync(fontName);
+      await loadNodeFonts(node);
       node.characters = p.text;
       figma.commitUndo();
       return {
@@ -21,6 +35,69 @@ export const handleWriteModifyRequest = async (request: any) => {
         requestId: request.requestId,
         data: { id: node.id, name: node.name, characters: node.characters },
       };
+    }
+
+    case "set_text_properties": {
+      const p = request.params || {};
+      const nodeIds = request.nodeIds || [];
+      if (nodeIds.length === 0) throw new Error("nodeIds is required");
+      const results: any[] = [];
+      for (const nid of nodeIds) {
+        const n = await figma.getNodeByIdAsync(nid) as any;
+        if (!n) { results.push({ nodeId: nid, error: "Node not found" }); continue; }
+        if (n.type !== "TEXT") { results.push({ nodeId: nid, error: `Node ${nid} is not a TEXT node` }); continue; }
+        try {
+          // Switching fontName only needs the new font, so a missing current font
+          // (e.g. SF Pro on Linux) must not block a font change.
+          try {
+            await loadNodeFonts(n);
+          } catch (err) {
+            if (!p.fontFamily && !p.fontStyle) throw err;
+          }
+          if (p.fontFamily || p.fontStyle) {
+            const current = typeof n.fontName === "symbol" ? { family: "Inter", style: "Regular" } : n.fontName;
+            const font = { family: p.fontFamily || current.family, style: p.fontStyle || current.style };
+            await figma.loadFontAsync(font);
+            n.fontName = font;
+          }
+          if (p.fontSize != null) n.fontSize = Number(p.fontSize);
+          if (p.lineHeight != null) n.lineHeight = parseTextMeasure(p.lineHeight, true);
+          if (p.letterSpacing != null) n.letterSpacing = parseTextMeasure(p.letterSpacing, false);
+          if (p.textAlignHorizontal) n.textAlignHorizontal = p.textAlignHorizontal;
+          if (p.textAlignVertical) n.textAlignVertical = p.textAlignVertical;
+          if (p.textCase) n.textCase = p.textCase;
+          if (p.textDecoration) n.textDecoration = p.textDecoration;
+          if (p.textAutoResize) n.textAutoResize = p.textAutoResize;
+          results.push({
+            nodeId: n.id,
+            fontName: typeof n.fontName === "symbol" ? "mixed" : n.fontName,
+            fontSize: typeof n.fontSize === "symbol" ? "mixed" : n.fontSize,
+          });
+        } catch (err) {
+          results.push({ nodeId: nid, error: err instanceof Error ? err.message : String(err) });
+        }
+      }
+      figma.commitUndo();
+      return { type: request.type, requestId: request.requestId, data: { results } };
+    }
+
+    case "set_image_fill": {
+      const p = request.params || {};
+      const nodeIds = request.nodeIds || [];
+      if (!p.imageData) throw new Error("imageData (base64) is required");
+      if (nodeIds.length === 0) throw new Error("nodeIds is required");
+      const image = figma.createImage(base64ToBytes(p.imageData));
+      const paint = { type: "IMAGE", imageHash: image.hash, scaleMode: p.scaleMode || "FILL" };
+      const results: any[] = [];
+      for (const nid of nodeIds) {
+        const n = await figma.getNodeByIdAsync(nid) as any;
+        if (!n) { results.push({ nodeId: nid, error: "Node not found" }); continue; }
+        if (!("fills" in n)) { results.push({ nodeId: nid, error: `Node ${nid} does not support fills` }); continue; }
+        n.fills = [paint];
+        results.push({ nodeId: n.id });
+      }
+      figma.commitUndo();
+      return { type: request.type, requestId: request.requestId, data: { imageHash: image.hash, results } };
     }
 
     case "set_fills": {

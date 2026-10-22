@@ -95,4 +95,55 @@ func registerWriteComponentTools(s *server.MCPServer, node *Node) {
 		resp, err := node.Send(ctx, "detach_instance", nodeIDs, nil)
 		return renderResponse(resp, err)
 	})
+
+	s.AddTool(mcp.NewTool("create_instance",
+		mcp.WithDescription("Create an instance of a local COMPONENT (or the default variant of a COMPONENT_SET) inside a parent, optionally setting its properties. Build screens from instances instead of redrawing shapes. Get IDs from get_local_components."),
+		mcp.WithString("componentId",
+			mcp.Required(),
+			mcp.Description("COMPONENT or COMPONENT_SET node ID in colon format e.g. 4029:12345"),
+		),
+		mcp.WithString("parentId", mcp.Description("Parent frame ID in colon format; defaults to the current page. Always pass it when building inside a layout.")),
+		mcp.WithNumber("x", mcp.Description("X position (ignored inside auto-layout parents)")),
+		mcp.WithNumber("y", mcp.Description("Y position (ignored inside auto-layout parents)")),
+		mcp.WithString("name", mcp.Description("Optional layer name for the instance")),
+		mcp.WithObject("properties", mcp.Description("Component properties by display name, e.g. {\"Size\":\"Large\",\"Label\":\"Continue\",\"Show icon\":true}. Variant values are strings, booleans for BOOLEAN props, text for TEXT props.")),
+	), func(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+		args := req.GetArguments()
+		componentID, _ := args["componentId"].(string)
+		params := map[string]interface{}{"componentId": NormalizeNodeID(componentID)}
+		if pid, ok := args["parentId"].(string); ok && pid != "" {
+			params["parentId"] = pid
+		}
+		for _, key := range []string{"x", "y"} {
+			if v, ok := args[key].(float64); ok {
+				params[key] = v
+			}
+		}
+		if name, ok := args["name"].(string); ok && name != "" {
+			params["name"] = name
+		}
+		if props, ok := args["properties"].(map[string]interface{}); ok && len(props) > 0 {
+			params["properties"] = props
+		}
+		resp, err := node.Send(ctx, "create_instance", nil, params)
+		return renderResponse(resp, err)
+	})
+
+	s.AddTool(mcp.NewTool("set_instance_properties",
+		mcp.WithDescription("Set variant, boolean, and text properties on a component INSTANCE by display name (e.g. 'Size', 'Label'). The error message lists available property names if one is wrong."),
+		mcp.WithString("nodeId",
+			mcp.Required(),
+			mcp.Description("INSTANCE node ID in colon format e.g. 4029:12345"),
+		),
+		mcp.WithObject("properties",
+			mcp.Required(),
+			mcp.Description("e.g. {\"Size\":\"Small\",\"State\":\"Disabled\",\"Show icon\":false,\"Label\":\"Save\"}"),
+		),
+	), func(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+		args := req.GetArguments()
+		nodeID, _ := args["nodeId"].(string)
+		props, _ := args["properties"].(map[string]interface{})
+		resp, err := node.Send(ctx, "set_instance_properties", []string{nodeID}, map[string]interface{}{"properties": props})
+		return renderResponse(resp, err)
+	})
 }

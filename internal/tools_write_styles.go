@@ -233,4 +233,74 @@ func registerWriteStyleTools(s *server.MCPServer, node *Node) {
 		resp, err := node.Send(ctx, "set_description", nil, params)
 		return renderResponse(resp, err)
 	})
+
+	s.AddTool(mcp.NewTool("replace_colors",
+		mcp.WithDescription("Recolour a whole subtree in one call: every SOLID fill/stroke matching a hex is rebound to a variable (preferred) or set to a new hex; matching gradient stops take the resolved colour. Opacity and stop alpha are kept. Run with dryRun=true first to list the colours in use. Instance internals are skipped unless includeInstances is true; edit main components instead."),
+		mcp.WithString("nodeId",
+			mcp.Required(),
+			mcp.Description("Root node or page ID in colon format e.g. '0:1'"),
+		),
+		mcp.WithArray("mappings",
+			mcp.Description("[{\"from\":\"#FF2D55\",\"variableId\":\"VariableID:1:2\"}, {\"from\":\"#FFFFFF\",\"color\":\"#F4F4F7\"}]; required unless dryRun"),
+			mcp.Items(map[string]any{
+				"type": "object",
+				"properties": map[string]any{
+					"from":       map[string]any{"type": "string", "description": "Hex #RRGGBB to match"},
+					"variableId": map[string]any{"type": "string", "description": "COLOR variable to bind"},
+					"color":      map[string]any{"type": "string", "description": "Replacement hex #RRGGBB"},
+					"gradient":   map[string]any{"type": "array", "items": map[string]any{"type": "string"}, "description": "2-4 hex colours: turns matching solids into a left-to-right linear gradient"},
+				},
+				"required": []string{"from"},
+			}),
+		),
+		mcp.WithBoolean("dryRun", mcp.Description("Only report colour usage (hex, fill and stroke counts); change nothing")),
+		mcp.WithBoolean("includeInstances", mcp.Description("Also recolour inside instances, creating overrides (default false)")),
+		mcp.WithArray("nodeTypes", mcp.Description("Only recolour these node types, e.g. [\"TEXT\"]"), mcp.WithStringItems()),
+	), func(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+		args := req.GetArguments()
+		nodeID, _ := args["nodeId"].(string)
+		params := map[string]interface{}{}
+		if t, ok := args["nodeTypes"].([]interface{}); ok && len(t) > 0 {
+			params["nodeTypes"] = t
+		}
+		if m, ok := args["mappings"].([]interface{}); ok && len(m) > 0 {
+			params["mappings"] = m
+		}
+		for _, key := range []string{"dryRun", "includeInstances"} {
+			if v, ok := args[key].(bool); ok {
+				params[key] = v
+			}
+		}
+		resp, err := node.Send(ctx, "replace_colors", []string{nodeID}, params)
+		return renderResponse(resp, err)
+	})
+
+	s.AddTool(mcp.NewTool("snap_to_tokens",
+		mcp.WithDescription("Snap a subtree to the spacing and radius scale in one call: every auto-layout padding/itemSpacing is bound to the nearest spacing variable and every corner radius to the nearest radius variable (key 999 = full, used for pills). Skips text, vectors and instance internals. Run dryRun first to see the value changes."),
+		mcp.WithString("nodeId",
+			mcp.Required(),
+			mcp.Description("Root node ID in colon format e.g. '90:19994'"),
+		),
+		mcp.WithObject("spacingVariables",
+			mcp.Required(),
+			mcp.Description("Map of pixel value to FLOAT variable ID, e.g. {\"4\":\"VariableID:1:4\",\"8\":\"VariableID:1:8\"}"),
+		),
+		mcp.WithObject("radiusVariables",
+			mcp.Required(),
+			mcp.Description("Map of pixel value to FLOAT variable ID; use key \"999\" for the full/pill radius"),
+		),
+		mcp.WithBoolean("dryRun", mcp.Description("Only report value changes (e.g. \"10→8\": 3); bind nothing")),
+	), func(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+		args := req.GetArguments()
+		nodeID, _ := args["nodeId"].(string)
+		params := map[string]interface{}{
+			"spacingVariables": args["spacingVariables"],
+			"radiusVariables":  args["radiusVariables"],
+		}
+		if v, ok := args["dryRun"].(bool); ok {
+			params["dryRun"] = v
+		}
+		resp, err := node.Send(ctx, "snap_to_tokens", []string{nodeID}, params)
+		return renderResponse(resp, err)
+	})
 }

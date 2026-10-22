@@ -23,6 +23,7 @@ var logger = log.New(os.Stderr, "", 0)
 func main() {
 	ip := flag.String("ip", "127.0.0.1", "IP address to listen on (use 0.0.0.0 to accept remote connections)")
 	port := flag.Int("port", 1995, "port to listen on")
+	profile := flag.String("profile", "full", "tool set to expose: full, design (UI building), or read (inspection only)")
 	flag.Parse()
 
 	parsedIP := net.ParseIP(*ip)
@@ -43,10 +44,13 @@ func main() {
 		logger.Fatalf("election start: %v", err)
 	}
 
-	logger.Printf("Starting Figma MCP Design %s (role: %s)", version, node.RoleName())
+	logger.Printf("Starting Figma MCP Design %s (role: %s, profile: %s)", version, node.RoleName(), *profile)
 
 	s := server.NewMCPServer("Figma MCP Design", version)
 	internal.RegisterTools(s, node)
+	if err := internal.ApplyProfile(s, *profile); err != nil {
+		logger.Fatalf("%v", err)
+	}
 	internal.RegisterPrompts(s)
 
 	go func() {
