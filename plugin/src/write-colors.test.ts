@@ -26,7 +26,11 @@ beforeEach(() => {
     getNodeByIdAsync: async (id: string) => mockNodes[id] ?? null,
     commitUndo: () => { commitUndoCalled = true; },
     variables: {
-      getVariableByIdAsync: async (id: string) => (id === "VariableID:1:1" ? { id, name: "brand/primary" } : null),
+      getVariableByIdAsync: async (id: string) => {
+        if (id === "VariableID:1:1") return { id, name: "brand/primary", resolveForConsumer: () => ({ value: { r: 1, g: 0, b: 0, a: 1 } }) };
+        if (id === "VariableID:1:2") return { id, name: "glass/fill", resolveForConsumer: () => ({ value: { r: 1, g: 1, b: 1, a: 20 / 255 } }) };
+        return null;
+      },
       setBoundVariableForPaint: (paint: any, _field: string, variable: any) => ({
         ...paint, boundVariables: { color: { type: "VARIABLE_ALIAS", id: variable.id } },
       }),
@@ -57,17 +61,61 @@ describe("replace_colors", () => {
     expect(commitUndoCalled).toBe(false);
   });
 
-  it("binds matching fills and strokes to a variable, keeping paint opacity", async () => {
+  it("binds matching opaque fills and strokes to a variable", async () => {
     const { button } = buildTree();
-    button.fills = [solid(1, 45 / 255, 85 / 255, 0.5)];
     const res = await handleWriteStyleRequest(makeRequest("replace_colors", ["1:1"], {
       mappings: [{ from: "#ff2d55", variableId: "VariableID:1:1" }],
     }));
     expect(button.fills[0].boundVariables.color.id).toBe("VariableID:1:1");
-    expect(button.fills[0].opacity).toBe(0.5);
+    expect(button.fills[0].opacity).toBe(1);
     expect(button.strokes[0].boundVariables.color.id).toBe("VariableID:1:1");
     expect(res?.data.replaced["#FF2D55"]).toBe(2);
     expect(commitUndoCalled).toBe(true);
+  });
+
+  it("matches #RRGGBBAA against one opacity only, ahead of the #RRGGBB mapping", async () => {
+    const { button, text } = buildTree();
+    button.fills = [solid(1, 1, 1, 20 / 255)];
+    const res = await handleWriteStyleRequest(makeRequest("replace_colors", ["1:1"], {
+      mappings: [
+        { from: "#FFFFFF14", color: "#000000" },
+        { from: "#FFFFFF", color: "#F0F0F0" },
+      ],
+    }));
+    expect(button.fills[0].color.r).toBe(0);
+    expect(text.fills[0].color.r).toBeCloseTo(240 / 255);
+    expect(res?.data.replaced["#FFFFFF14"]).toBe(1);
+    expect(res?.data.replaced["#FFFFFF"]).toBe(1);
+  });
+
+  it("dryRun reports translucent solids as #RRGGBBAA", async () => {
+    const { button } = buildTree();
+    button.fills = [solid(1, 1, 1, 20 / 255)];
+    const res = await handleWriteStyleRequest(makeRequest("replace_colors", ["1:1"], { dryRun: true }));
+    expect(res?.data.colors.map((c: any) => c.hex)).toContain("#FFFFFF14");
+  });
+
+  it("leaves a translucent paint alone when the variable alpha differs, and reports it", async () => {
+    const { button } = buildTree();
+    button.fills = [solid(1, 45 / 255, 85 / 255, 0.5)];
+    const res = await handleWriteStyleRequest(makeRequest("replace_colors", ["1:1"], {
+      mappings: [{ from: "#FF2D55", variableId: "VariableID:1:1" }],
+    }));
+    expect(button.fills[0].boundVariables).toBeUndefined();
+    expect(button.fills[0].opacity).toBe(0.5);
+    expect(button.strokes[0].boundVariables.color.id).toBe("VariableID:1:1");
+    expect(res?.data.skippedTranslucent).toBe(1);
+    expect(res?.data.replaced["#FF2D55"]).toBe(1);
+  });
+
+  it("binds a translucent paint when the variable carries the same alpha", async () => {
+    const { button } = buildTree();
+    button.fills = [solid(1, 1, 1, 20 / 255)];
+    const res = await handleWriteStyleRequest(makeRequest("replace_colors", ["1:1"], {
+      mappings: [{ from: "#FFFFFF14", variableId: "VariableID:1:2" }],
+    }));
+    expect(button.fills[0].boundVariables.color.id).toBe("VariableID:1:2");
+    expect(res?.data.skippedTranslucent).toBeUndefined();
   });
 
   it("replaces with a plain hex colour", async () => {

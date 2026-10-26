@@ -50,6 +50,37 @@ Other actions: {"type":"BACK"}, {"type":"URL","url":"https://…"}. AFTER_TIMEOU
 		return renderResponse(resp, err)
 	})
 
+	s.AddTool(mcp.NewTool("set_connector_endpoints",
+		mcp.WithDescription("Re-point a CONNECTOR node (flow arrow) to other nodes. Pass startNodeId, endNodeId or both; an omitted end keeps its current endpoint. magnet sets where the line attaches (default AUTO)."),
+		mcp.WithString("nodeId",
+			mcp.Required(),
+			mcp.Description("CONNECTOR node ID in colon format e.g. '4029:12345'"),
+		),
+		mcp.WithString("startNodeId",
+			mcp.Description("Node the connector starts from"),
+		),
+		mcp.WithString("endNodeId",
+			mcp.Description("Node the connector points to"),
+		),
+		mcp.WithString("magnet",
+			mcp.Description("AUTO (default), TOP, BOTTOM, LEFT, RIGHT or CENTER"),
+		),
+	), func(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+		args := req.GetArguments()
+		nodeID, _ := args["nodeId"].(string)
+		params := map[string]any{}
+		for _, key := range []string{"startNodeId", "endNodeId"} {
+			if id, ok := args[key].(string); ok && id != "" {
+				params[key] = NormalizeNodeID(id)
+			}
+		}
+		if magnet, ok := args["magnet"].(string); ok && magnet != "" {
+			params["magnet"] = magnet
+		}
+		resp, err := node.Send(ctx, "set_connector_endpoints", []string{NormalizeNodeID(nodeID)}, params)
+		return renderResponse(resp, err)
+	})
+
 	s.AddTool(mcp.NewTool("remove_reactions",
 		mcp.WithDescription("Remove prototype reactions from a node. Omit indices to remove all reactions. Provide a zero-based indices array to remove specific reactions (use get_reactions first to see current indices)."),
 		mcp.WithString("nodeId",

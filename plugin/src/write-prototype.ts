@@ -51,6 +51,32 @@ export const handleWritePrototypeRequest = async (request: any) => {
       };
     }
 
+    case "set_connector_endpoints": {
+      const p = request.params || {};
+      const nodeId = request.nodeIds && request.nodeIds[0];
+      if (!nodeId) throw new Error("nodeId is required");
+      const node: any = await figma.getNodeByIdAsync(nodeId);
+      if (!node) throw new Error(`Node not found: ${nodeId}`);
+      if (node.type !== "CONNECTOR") throw new Error(`Node ${nodeId} is a ${node.type}, not a CONNECTOR`);
+      if (!p.startNodeId && !p.endNodeId) throw new Error("startNodeId or endNodeId is required");
+
+      const magnet = p.magnet || "AUTO";
+      const endpoint = async (id: string) => {
+        const target = await figma.getNodeByIdAsync(id);
+        if (!target) throw new Error(`Node not found: ${id}`);
+        return { endpointNodeId: target.id, magnet };
+      };
+      if (p.startNodeId) node.connectorStart = await endpoint(p.startNodeId);
+      if (p.endNodeId) node.connectorEnd = await endpoint(p.endNodeId);
+      figma.commitUndo();
+      const idOf = (e: any) => (e && "endpointNodeId" in e ? e.endpointNodeId : null);
+      return {
+        type: request.type,
+        requestId: request.requestId,
+        data: { id: node.id, name: node.name, startNodeId: idOf(node.connectorStart), endNodeId: idOf(node.connectorEnd) },
+      };
+    }
+
     case "remove_reactions": {
       const p = request.params || {};
       const nodeId = request.nodeIds && request.nodeIds[0];

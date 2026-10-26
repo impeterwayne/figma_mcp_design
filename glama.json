@@ -2,7 +2,7 @@
   "$schema": "https://glama.ai/mcp/schemas/server.json",
   "maintainers": ["impeterwayne"],
   "name": "Figma MCP Design",
-  "description": "Figma MCP server with full read/write access via plugin bridge — no API token, no rate limits. 85 tools for design automation: styles, variables, components, prototypes, and content.",
+  "description": "Figma MCP server with full read/write access via plugin bridge — no API token, no rate limits. 86 tools for design automation: styles, variables, components, prototypes, and content.",
   "license": "MIT",
   "tools": [
     { "name": "get_document", "description": "Full current page tree" },
@@ -83,6 +83,7 @@
     { "name": "rename_page", "description": "Rename an existing page in the Figma document" },
     { "name": "delete_page", "description": "Delete a page from the Figma document" },
     { "name": "set_reactions", "description": "Set prototype reactions on a node" },
-    { "name": "remove_reactions", "description": "Remove reactions from a node" }
+    { "name": "remove_reactions", "description": "Remove reactions from a node" },
+    { "name": "set_connector_endpoints", "description": "Re-point a connector to new start or end nodes" }
   ]
 }

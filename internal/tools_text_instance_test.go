@@ -286,3 +286,18 @@ func TestValidateRPC_ReplaceColorsGradient(t *testing.T) {
 		t.Error("expected error for non-hex gradient stop")
 	}
 }
+
+func TestValidateRPC_SetConnectorEndpoints(t *testing.T) {
+	if msg := ValidateRPC("set_connector_endpoints", []string{"5:1"}, map[string]any{"endNodeId": "2:2"}); msg != "" {
+		t.Errorf("valid request rejected: %s", msg)
+	}
+	if msg := ValidateRPC("set_connector_endpoints", []string{"5:1"}, map[string]any{}); msg == "" {
+		t.Error("expected error when no endpoint is given")
+	}
+	if msg := ValidateRPC("set_connector_endpoints", []string{"5:1"}, map[string]any{"startNodeId": "bad"}); msg == "" {
+		t.Error("expected error for a malformed startNodeId")
+	}
+	if msg := ValidateRPC("set_connector_endpoints", []string{"5:1"}, map[string]any{"endNodeId": "2:2", "magnet": "UP"}); msg == "" {
+		t.Error("expected error for an unknown magnet")
+	}
+}

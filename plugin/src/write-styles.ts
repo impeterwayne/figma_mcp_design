@@ -2,6 +2,11 @@ import { makeSolidPaint, hexToRgb, loadNodeFonts } from "./write-helpers";
 
 const channelHex = (v: number) => Math.round(v * 255).toString(16).padStart(2, "0").toUpperCase();
 const paintHex = (paint: any) => `#${channelHex(paint.color.r)}${channelHex(paint.color.g)}${channelHex(paint.color.b)}`;
+// A translucent solid also gets an #RRGGBBAA key so a mapping can target one opacity only.
+const paintHexAlpha = (paint: any) => {
+  const opacity = paint.opacity ?? 1;
+  return opacity < 1 ? `${paintHex(paint)}${channelHex(opacity)}` : paintHex(paint);
+};
 
 // Visits every node under root; instance internals only when includeInstances is set.
 const walkNodes = (node: any, includeInstances: boolean, visit: (n: any) => void) => {
@@ -39,7 +44,7 @@ export const handleWriteStyleRequest = async (request: any) => {
             if (typeof paints === "symbol") {
               if (field === "fills" && typeof n.getStyledTextSegments === "function") {
                 for (const seg of n.getStyledTextSegments(["fills"])) {
-                  for (const paint of seg.fills) if (paint.type === "SOLID") entry(paintHex(paint)).fills++;
+                  for (const paint of seg.fills) if (paint.type === "SOLID") entry(paintHexAlpha(paint)).fills++;
                 }
               } else {
                 skippedMixed++;
@@ -47,7 +52,7 @@ export const handleWriteStyleRequest = async (request: any) => {
               continue;
             }
             for (const paint of paints || []) {
-              if (paint.type === "SOLID") entry(paintHex(paint))[field]++;
+              if (paint.type === "SOLID") entry(paintHexAlpha(paint))[field]++;
               else if (isGradient(paint)) for (const stop of paint.gradientStops) entry(paintHex(stop)).gradientStops++;
             }
           }
@@ -95,6 +100,16 @@ export const handleWriteStyleRequest = async (request: any) => {
         const { r, g, b } = target.variable.resolveForConsumer(node).value;
         return { r, g, b };
       };
+      // Figma drops a paint's own opacity once a colour variable is bound, so the variable's
+      // alpha is what renders. Binding a variable whose alpha differs from the paint's would
+      // turn glass or scrim fills solid, so such paints are left untouched and counted.
+      const keepsOpacity = (target: { variable?: any }, node: any, paint: any) => {
+        if (!target.variable) return true;
+        const opacity = paint.opacity ?? 1;
+        const alpha = target.variable.resolveForConsumer(node).value.a ?? 1;
+        return Math.abs(alpha - opacity) < 0.01;
+      };
+      let skippedTranslucent = 0;
       const replaced: Record<string, number> = {};
       const count = (hex: string) => { replaced[hex] = (replaced[hex] || 0) + 1; };
       let nodesChanged = 0;
@@ -124,15 +139,16 @@ export const handleWriteStyleRequest = async (request: any) => {
               return { ...paint, gradientStops };
             }
             if (paint.type !== "SOLID") return paint;
-            const hex = paintHex(paint);
+            const hexAlpha = paintHexAlpha(paint);
+            const hex = targets.has(hexAlpha) ? hexAlpha : paintHex(paint);
             const target = targets.get(hex);
             if (!target) return paint;
+            if (!keepsOpacity(target, n, paint)) { skippedTranslucent++; return paint; }
             touched = true;
             count(hex);
             const { boundVariables, ...plain } = paint;
             if (target.gradient) return gradientPaint(target.gradient, plain);
             if (target.variable) {
-              // Binding can drop opacity, so carry it over explicitly.
               const bound = figma.variables.setBoundVariableForPaint(plain, "color", target.variable);
               return { ...bound, opacity: plain.opacity ?? 1 };
             }
@@ -162,9 +178,11 @@ export const handleWriteStyleRequest = async (request: any) => {
           let touched = false;
           const next = seg.fills.map((paint: any) => {
             if (paint.type !== "SOLID") return paint;
-            const hex = paintHex(paint);
+            const hexAlpha = paintHexAlpha(paint);
+            const hex = targets.has(hexAlpha) ? hexAlpha : paintHex(paint);
             const target = targets.get(hex);
             if (!target) return paint;
+            if (!keepsOpacity(target, n, paint)) { skippedTranslucent++; return paint; }
             touched = true;
             count(hex);
             const { boundVariables, ...plain } = paint;
@@ -186,7 +204,11 @@ export const handleWriteStyleRequest = async (request: any) => {
         if (changed) nodesChanged++;
       }
       figma.commitUndo();
-      return { type: request.type, requestId: request.requestId, data: { replaced, nodesChanged } };
+      return {
+        type: request.type,
+        requestId: request.requestId,
+        data: skippedTranslucent > 0 ? { replaced, nodesChanged, skippedTranslucent } : { replaced, nodesChanged },
+      };
     }
 
     case "snap_to_tokens": {

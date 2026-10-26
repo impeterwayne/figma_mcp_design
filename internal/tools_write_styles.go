@@ -245,7 +245,7 @@ func registerWriteStyleTools(s *server.MCPServer, node *Node) {
 			mcp.Items(map[string]any{
 				"type": "object",
 				"properties": map[string]any{
-					"from":       map[string]any{"type": "string", "description": "Hex #RRGGBB to match"},
+					"from":       map[string]any{"type": "string", "description": "Hex #RRGGBB (any opacity) or #RRGGBBAA (only that opacity) to match"},
 					"variableId": map[string]any{"type": "string", "description": "COLOR variable to bind"},
 					"color":      map[string]any{"type": "string", "description": "Replacement hex #RRGGBB"},
 					"gradient":   map[string]any{"type": "array", "items": map[string]any{"type": "string"}, "description": "2-4 hex colours: turns matching solids into a left-to-right linear gradient"},

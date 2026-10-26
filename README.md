@@ -6,7 +6,7 @@ A Go stdio MCP server that connects AI clients to a local Figma Desktop plugin o
 
 This repo contains three cooperating pieces:
 
-- an MCP server exposing 85 tools and 18 design-system prompts over stdio
+- an MCP server exposing 86 tools and 18 design-system prompts over stdio
 - a Figma Desktop plugin that talks to the server on `ws://127.0.0.1:1995` by default
 - a suite of agent skills (`.agents/skills/`) for UI/UX design, design systems, branding, banners, slides, and Figma workflows
 
@@ -15,7 +15,7 @@ This repo contains three cooperating pieces:
 - Full read/write bridge from AI clients to live Figma documents
 - No Figma REST API key required and no rate limits
 - Local plugin connection over WebSocket (`ws://127.0.0.1:1995`) with automatic Leader/Follower multi-instance support
-- 85 exposed tools for document inspection, node creation, layout & property editing, styles, variables, components, pages, prototypes, and exports
+- 86 exposed tools for document inspection, node creation, layout & property editing, styles, variables, components, pages, prototypes, and exports
 - 18 built-in MCP prompts for design strategy, token naming standards, accessibility audits (WCAG), and design-system refactoring
 - Design token export support (JSON and CSS custom properties)
 - Screenshot and multi-page PDF export helpers, including direct file saves
@@ -106,8 +106,8 @@ Every tool schema is loaded into the AI client's context each session. Pick the 
 
 | Profile | Tools | Schema size | Use for |
 |---------|-------|-------------|---------|
-| `full` (default) | 85 | ~66 KB | Everything, including prototyping, PDF export and bulk renaming |
-| `design` | 62 | ~50 KB | Building and editing UI, design systems and components |
+| `full` (default) | 86 | ~66 KB | Everything, including prototyping, PDF export and bulk renaming |
+| `design` | 63 | ~50 KB | Building and editing UI, design systems and components |
 | `read` | 22 | ~14 KB | Inspecting, reviewing and exporting; no write tools |
 
 ```json
@@ -116,7 +116,7 @@ Every tool schema is loaded into the AI client's context each session. Pick the 
 
 ## Available tools
 
-85 tools — 21 read/export tools and 64 write/automation tools against your live Figma document.
+86 tools — 21 read/export tools and 65 write/automation tools against your live Figma document.
 
 ### Document and node inspection
 
@@ -247,6 +247,7 @@ Every tool schema is loaded into the AI client's context each session. Pick the 
 |------|--------------|
 | `set_reactions` | Sets or appends prototype reactions (triggers, navigation actions, transitions) on a node. |
 | `remove_reactions` | Removes all or specific prototype reactions from a node by index. |
+| `set_connector_endpoints` | Re-points a connector (flow arrow) to new start and/or end nodes. |
 
 ## License
 

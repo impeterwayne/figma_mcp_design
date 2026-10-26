@@ -364,8 +364,8 @@ func ValidateRPC(tool string, nodeIDs []string, params map[string]interface{}) s
 		}
 		for i, it := range mappings {
 			m, _ := it.(map[string]interface{})
-			if from, _ := m["from"].(string); !hexColorRe.MatchString(from) {
-				return fmt.Sprintf("mappings[%d].from must be #RRGGBB, got: %v", i, m["from"])
+			if from, _ := m["from"].(string); !hexColorAlphaRe.MatchString(from) {
+				return fmt.Sprintf("mappings[%d].from must be #RRGGBB or #RRGGBBAA, got: %v", i, m["from"])
 			}
 			vid, _ := m["variableId"].(string)
 			color, _ := m["color"].(string)
@@ -752,6 +752,31 @@ func ValidateRPC(tool string, nodeIDs []string, params map[string]interface{}) s
 			}
 		}
 
+	case "set_connector_endpoints":
+		if len(nodeIDs) == 0 || nodeIDs[0] == "" {
+			return "nodeId is required"
+		}
+		if !ValidNodeID(nodeIDs[0]) {
+			return fmt.Sprintf("nodeId must use colon format e.g. 4029:12345, got: %s", nodeIDs[0])
+		}
+		start, _ := params["startNodeId"].(string)
+		end, _ := params["endNodeId"].(string)
+		if start == "" && end == "" {
+			return "startNodeId or endNodeId is required"
+		}
+		for key, id := range map[string]string{"startNodeId": start, "endNodeId": end} {
+			if id != "" && !ValidNodeID(id) {
+				return fmt.Sprintf("%s must use colon format e.g. 4029:12345, got: %s", key, id)
+			}
+		}
+		if magnet, ok := params["magnet"].(string); ok && magnet != "" {
+			switch magnet {
+			case "AUTO", "TOP", "BOTTOM", "LEFT", "RIGHT", "CENTER":
+			default:
+				return fmt.Sprintf("magnet must be AUTO, TOP, BOTTOM, LEFT, RIGHT or CENTER, got: %s", magnet)
+			}
+		}
+
 	case "remove_reactions":
 		if len(nodeIDs) == 0 || nodeIDs[0] == "" {
 			return "nodeId is required"
@@ -1130,3 +1155,6 @@ func containsString(list []string, v string) bool {
 }
 
 var hexColorRe = regexp.MustCompile(`^#[0-9A-Fa-f]{6}$`)
+
+// hexColorAlphaRe also accepts #RRGGBBAA, used to match a solid paint by colour and opacity.
+var hexColorAlphaRe = regexp.MustCompile(`^#[0-9A-Fa-f]{6}([0-9A-Fa-f]{2})?$`)

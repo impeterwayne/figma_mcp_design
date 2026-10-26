@@ -6,7 +6,7 @@ MCP server viết bằng Go, giao tiếp qua stdio, giúp các AI client đọc 
 
 Repo gồm ba phần hoạt động cùng nhau:
 
-- MCP server cung cấp 85 tool và 18 prompt thiết kế qua stdio
+- MCP server cung cấp 86 tool và 18 prompt thiết kế qua stdio
 - plugin Figma Desktop kết nối tới server tại `ws://127.0.0.1:1995` (mặc định)
 - bộ kỹ năng cho AI agent (`.agents/skills/`) phục vụ thiết kế UI/UX, design system, nhận diện thương hiệu, banner, slide và quy trình làm việc trên Figma
 
@@ -15,7 +15,7 @@ Repo gồm ba phần hoạt động cùng nhau:
 - Cho phép AI client đọc và chỉnh sửa trực tiếp (full read/write) file Figma đang mở
 - Không cần Figma REST API key, không giới hạn số lần gọi
 - Plugin kết nối nội bộ qua WebSocket (`ws://127.0.0.1:1995`), hỗ trợ nhiều AI client chạy song song qua cơ chế Leader/Follower
-- 85 tool để duyệt tài liệu, tạo mới, chỉnh sửa bố cục & thuộc tính, quản lý style, variable, component, page, prototype và xuất file
+- 86 tool để duyệt tài liệu, tạo mới, chỉnh sửa bố cục & thuộc tính, quản lý style, variable, component, page, prototype và xuất file
 - 18 MCP prompt tích hợp sẵn cho chiến lược thiết kế, chuẩn đặt tên token, kiểm tra trợ năng (WCAG) và tái cấu trúc design system
 - Xuất design token ra JSON hoặc CSS custom properties
 - Chụp ảnh màn hình node (lưu thẳng ra file) và xuất nhiều frame thành một file PDF nhiều trang
@@ -106,8 +106,8 @@ Mô tả của mọi tool được nạp vào ngữ cảnh của AI ở mỗi ph
 
 | Profile | Số tool | Dung lượng schema | Dùng khi |
 |---------|---------|-------------------|----------|
-| `full` (mặc định) | 85 | ~66 KB | Mọi việc, kể cả prototype, xuất PDF, đổi tên hàng loạt |
-| `design` | 62 | ~50 KB | Dựng và chỉnh UI, design system, component |
+| `full` (mặc định) | 86 | ~66 KB | Mọi việc, kể cả prototype, xuất PDF, đổi tên hàng loạt |
+| `design` | 63 | ~50 KB | Dựng và chỉnh UI, design system, component |
 | `read` | 22 | ~14 KB | Đọc, review, xuất ảnh; không có tool ghi |
 
 ```json
@@ -116,7 +116,7 @@ Mô tả của mọi tool được nạp vào ngữ cảnh của AI ở mỗi ph
 
 ## Danh sách tool
 
-85 tool — gồm 21 tool đọc/xuất dữ liệu và 64 tool tạo mới/chỉnh sửa trực tiếp trên tài liệu Figma.
+86 tool — gồm 21 tool đọc/xuất dữ liệu và 65 tool tạo mới/chỉnh sửa trực tiếp trên tài liệu Figma.
 
 ### Duyệt documents và node
 
@@ -247,6 +247,7 @@ Mô tả của mọi tool được nạp vào ngữ cảnh của AI ở mỗi ph
 |------|-----------|
 | `set_reactions` | Thiết lập hoặc nối thêm các reaction prototype (sự kiện kích hoạt, điều hướng, hiệu ứng chuyển cảnh) trên node. |
 | `remove_reactions` | Xóa toàn bộ hoặc xóa từng reaction prototype theo chỉ mục trên một node. |
+| `set_connector_endpoints` | Trỏ lại điểm đầu và/hoặc điểm cuối của một connector (mũi tên flow) sang node khác. |
 
 ## Giấy phép
 
