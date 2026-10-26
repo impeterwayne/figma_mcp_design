@@ -46,7 +46,7 @@ This document details the complete set of tools exposed by the Go Model Context 
 - `update_paint_style`: Update an existing paint style's name, color, or description.
 
 ## Exports
-- `get_screenshot`: Export a screenshot of one or more nodes as base64-encoded image data (held in memory).
+- `get_screenshot`: Export one or more nodes in memory: PNG/JPG as MCP image content, SVG as markup text, PDF as base64. `output: "base64"` returns base64 JSON for every format.
 - `save_screenshots`: Export screenshots for multiple nodes and write them to the local filesystem.
 - `export_frames_to_pdf`: Export multiple frames as a single multi-page PDF file.
 
@@ -58,12 +58,14 @@ This document details the complete set of tools exposed by the Go Model Context 
 - `create_component`: Convert an existing FRAME node into a reusable COMPONENT.
 - `create_section`: Create a Figma Section node on the current page.
 - `import_image`: Import a base64-encoded image into Figma as a rectangle with an image fill.
+- `create_svg`: Insert SVG markup, or a `.svg` file read on the Go side from inside the working directory, as vectors. The server strips scripts, event handlers and external links and minifies the markup; optional uniform resize and recolour via `colorVariableId` or `color`.
 
 ## Node Modification
 - `set_text`: Update the text content of a TEXT node, or of many nodes via `items: [{nodeId, text}]`.
 - `set_text_properties`: Change typography (font, size, line height, letter spacing, alignment, case, decoration, auto-resize) on one or more TEXT nodes.
 - `set_image_fill`: Fill existing nodes with a base64 image.
 - `replace_colors`: Map hex colours across a subtree (fills, strokes, gradient stops, shadows, text ranges) to variables or hex; `dryRun`, `includeInstances`, `nodeTypes`.
+- `design_system_audit`: Report layers not linked to variables/styles under a node or page (colour, text, effect, radius, spacing, repeated frames); `fix` binds exact token matches, `checks`, `includeInstances`, `limit`.
 - `snap_to_tokens`: Bind auto-layout spacing and corner radii in a subtree to the nearest spacing/radius variables; values far above the scale are kept.
 - `set_fills`: Set the fill color on a single node. Use mode='append' to stack a new fill.
 - `set_strokes`: Set the stroke color and weight on a single node.
@@ -86,6 +88,7 @@ This document details the complete set of tools exposed by the Go Model Context 
 - `reorder_nodes`: Change the z-order (layer stack position) of one or more nodes.
 - `group_nodes`: Group two or more nodes into a GROUP.
 - `ungroup_nodes`: Ungroup one or more GROUP nodes, moving their children to the parent and removing the group.
+- `boolean_operation`: `UNION` / `SUBTRACT` / `INTERSECT` / `EXCLUDE` (2+ nodes) or `FLATTEN` (1+ nodes) via `figma.union` etc.; nodes must share a parent and the result is inserted at the lowest source index.
 - `reparent_nodes`: Move one or more nodes to a different parent frame, group, or section.
 
 ## State & Instance Management

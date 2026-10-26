@@ -6,11 +6,13 @@ import { handleWriteStyleRequest } from "./write-styles";
 let mockNodes: Record<string, any>;
 let commitUndoCalled: boolean;
 
+// These tests cover the raw-value path; link:false stops token auto-creation
+// (covered in tokens.test.ts), which needs style APIs this mock does not have.
 const makeRequest = (type: string, nodeIds?: string[], params?: any) => ({
   type,
   requestId: "req-test-1",
   nodeIds: nodeIds ?? [],
-  params: params ?? {},
+  params: { link: false, ...(params ?? {}) },
 });
 
 beforeEach(() => {

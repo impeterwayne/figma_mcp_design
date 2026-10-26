@@ -50,12 +50,13 @@ func registerWriteModifyTools(s *server.MCPServer, node *Node) {
 	})
 
 	s.AddTool(mcp.NewTool("set_text_properties",
-		mcp.WithDescription("Change typography on one or more existing TEXT nodes in one call: font family/style, size, line height, letter spacing, alignment, case, decoration, auto-resize. Only the properties you pass are changed. Prefer apply_style_to_node when a matching text style exists."),
+		mcp.WithDescription("Change typography on one or more TEXT nodes in one call. Prefer textStyle: an existing style is linked; a missing one is created from the font params passed with it. Alignment and auto-resize still apply. Only the properties you pass are changed."),
 		mcp.WithArray("nodeIds",
 			mcp.Required(),
 			mcp.Description("TEXT node IDs in colon format e.g. ['4029:12345']"),
 			mcp.WithStringItems(),
 		),
+		mcp.WithString("textStyle", mcp.Description("Text style name or ID, e.g. 'SDV Type/Body/Regular'")),
 		mcp.WithString("fontFamily", mcp.Description("Font family e.g. 'Inter'. Keeps the current style unless fontStyle is set.")),
 		mcp.WithString("fontStyle", mcp.Description("Font style/weight name e.g. 'Regular', 'Medium', 'Semi Bold', 'Bold'")),
 		mcp.WithNumber("fontSize", mcp.Description("Font size in px")),
@@ -109,21 +110,23 @@ func registerWriteModifyTools(s *server.MCPServer, node *Node) {
 			mcp.Description("Node ID in colon format e.g. '4029:12345'"),
 		),
 		mcp.WithString("color",
-			mcp.Required(),
 			mcp.Description("Fill color as hex: #RRGGBB e.g. #FF5733 or #RRGGBBAA e.g. #FF573380 for 50% alpha"),
 		),
+		mcp.WithString("colorVariable", mcp.Description("COLOR variable name or ID, e.g. 'brand/primary' (preferred); created from color if missing")),
+		mcp.WithBoolean("link", mcp.Description("Bind a raw color to an existing or auto-created variable (default true)")),
 		mcp.WithNumber("opacity", mcp.Description("Fill opacity 0–1 (default 1). Combines multiplicatively with any alpha in the color hex.")),
 		mcp.WithString("mode", mcp.Description("'replace' (default) overwrites all existing fills; 'append' stacks this fill on top of existing ones")),
 	), func(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 		nodeID, _ := req.GetArguments()["nodeId"].(string)
-		params := map[string]interface{}{
-			"color": req.GetArguments()["color"],
-		}
+		params := colorOrVariable(req.GetArguments())
 		if op, ok := req.GetArguments()["opacity"].(float64); ok {
 			params["opacity"] = op
 		}
 		if m, ok := req.GetArguments()["mode"].(string); ok {
 			params["mode"] = m
+		}
+		if msg := ValidateRPC("set_fills", []string{nodeID}, params); msg != "" {
+			return mcp.NewToolResultError(msg), nil
 		}
 		resp, err := node.Send(ctx, "set_fills", []string{nodeID}, params)
 		return renderResponse(resp, err)
@@ -136,21 +139,23 @@ func registerWriteModifyTools(s *server.MCPServer, node *Node) {
 			mcp.Description("Node ID in colon format e.g. '4029:12345'"),
 		),
 		mcp.WithString("color",
-			mcp.Required(),
 			mcp.Description("Stroke color as hex e.g. #000000"),
 		),
+		mcp.WithString("colorVariable", mcp.Description("COLOR variable name or ID, e.g. 'border/subtle' (preferred); created from color if missing")),
+		mcp.WithBoolean("link", mcp.Description("Bind a raw color to an existing or auto-created variable (default true)")),
 		mcp.WithNumber("strokeWeight", mcp.Description("Stroke weight in pixels (default 1)")),
 		mcp.WithString("mode", mcp.Description("'replace' (default) overwrites all strokes; 'append' stacks on top of existing strokes")),
 	), func(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 		nodeID, _ := req.GetArguments()["nodeId"].(string)
-		params := map[string]interface{}{
-			"color": req.GetArguments()["color"],
-		}
+		params := colorOrVariable(req.GetArguments())
 		if sw, ok := req.GetArguments()["strokeWeight"].(float64); ok {
 			params["strokeWeight"] = sw
 		}
 		if m, ok := req.GetArguments()["mode"].(string); ok {
 			params["mode"] = m
+		}
+		if msg := ValidateRPC("set_strokes", []string{nodeID}, params); msg != "" {
+			return mcp.NewToolResultError(msg), nil
 		}
 		resp, err := node.Send(ctx, "set_strokes", []string{nodeID}, params)
 		return renderResponse(resp, err)
@@ -549,6 +554,25 @@ func registerWriteModifyTools(s *server.MCPServer, node *Node) {
 
 // textPropertyKeys lists the set_text_properties arguments forwarded to the plugin.
 var textPropertyKeys = []string{
-	"fontFamily", "fontStyle", "fontSize", "lineHeight", "letterSpacing",
+	"textStyle", "fontFamily", "fontStyle", "fontSize", "lineHeight", "letterSpacing",
 	"textAlignHorizontal", "textAlignVertical", "textCase", "textDecoration", "textAutoResize",
+}
+
+// colorOrVariable copies the colour arguments shared by set_fills and set_strokes.
+func colorOrVariable(args map[string]interface{}) map[string]interface{} {
+	params := map[string]interface{}{}
+	for _, key := range []string{"color", "colorVariable", "mode"} {
+		if v, ok := args[key].(string); ok && v != "" {
+			params[key] = v
+		}
+	}
+	for _, key := range []string{"opacity", "strokeWeight"} {
+		if v, ok := args[key].(float64); ok {
+			params[key] = v
+		}
+	}
+	if v, ok := args["link"].(bool); ok {
+		params["link"] = v
+	}
+	return params
 }

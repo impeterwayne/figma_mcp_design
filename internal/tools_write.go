@@ -6,6 +6,7 @@ func registerWriteTools(s *server.MCPServer, node *Node) {
 	registerWriteCreateTools(s, node)
 	registerWriteModifyTools(s, node)
 	registerWriteStyleTools(s, node)
+	registerDesignAuditTool(s, node)
 	registerWriteVariableTools(s, node)
 	registerWriteComponentTools(s, node)
 	registerWritePrototypeTools(s, node)

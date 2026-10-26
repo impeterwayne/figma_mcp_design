@@ -163,3 +163,59 @@ describe("ungroup_nodes", () => {
     expect(res).toBeNull();
   });
 });
+
+// ── boolean_operation ─────────────────────────────────────────────────────────
+
+describe("boolean_operation", () => {
+  let calls: { op: string; nodes: any[]; parent: any; index: number }[];
+  let parent: any;
+
+  const setup = () => {
+    calls = [];
+    parent = { id: "1:0", children: [] as any[] };
+    const shapes = ["1:1", "1:2", "1:3", "1:4"].map((id) => ({ id, type: "ELLIPSE", parent }));
+    parent.children = [...shapes];
+    for (const s of shapes) mockNodes[s.id] = s;
+    const f = (globalThis as any).figma;
+    for (const [op, type] of [["union", "BOOLEAN_OPERATION"], ["subtract", "BOOLEAN_OPERATION"], ["intersect", "BOOLEAN_OPERATION"], ["exclude", "BOOLEAN_OPERATION"], ["flatten", "VECTOR"]]) {
+      f[op] = (nodes: any[], par: any, index: number) => {
+        calls.push({ op, nodes, parent: par, index });
+        return { id: "res:1", name: op, type, x: 0, y: 0, width: 10, height: 10 };
+      };
+    }
+  };
+
+  it("runs each operation with the shared parent", async () => {
+    setup();
+    for (const op of ["UNION", "SUBTRACT", "INTERSECT", "EXCLUDE"]) {
+      const res = await handleWriteComponentRequest(makeRequest("boolean_operation", ["1:2", "1:3"], { operation: op }));
+      expect(res?.data.type).toBe("BOOLEAN_OPERATION");
+    }
+    expect(calls.map((c) => c.op)).toEqual(["union", "subtract", "intersect", "exclude"]);
+    expect(calls[0].parent).toBe(parent);
+    expect(commitUndoCalled).toBe(true);
+  });
+
+  it("inserts at the lowest source layer index to keep stacking order", async () => {
+    setup();
+    await handleWriteComponentRequest(makeRequest("boolean_operation", ["1:4", "1:2"], { operation: "UNION" }));
+    expect(calls[0].index).toBe(1);
+  });
+
+  it("flattens a single node and applies the name", async () => {
+    setup();
+    const res = await handleWriteComponentRequest(makeRequest("boolean_operation", ["1:3"], { operation: "flatten", name: "Logo" }));
+    expect(calls[0].op).toBe("flatten");
+    expect(res?.data).toMatchObject({ id: "res:1", type: "VECTOR", name: "Logo", bounds: { width: 10 } });
+  });
+
+  it("rejects bad input", async () => {
+    setup();
+    mockNodes["9:1"] = { id: "9:1", type: "ELLIPSE", parent: { id: "9:0", children: [] } };
+    await expect(handleWriteComponentRequest(makeRequest("boolean_operation", ["1:1"], { operation: "UNION" }))).rejects.toThrow("at least 2");
+    await expect(handleWriteComponentRequest(makeRequest("boolean_operation", ["1:1", "1:2"], { operation: "MERGE" }))).rejects.toThrow("operation must be");
+    await expect(handleWriteComponentRequest(makeRequest("boolean_operation", ["1:1", "9:1"], { operation: "UNION" }))).rejects.toThrow("same parent");
+    await expect(handleWriteComponentRequest(makeRequest("boolean_operation", ["1:1", "8:8"], { operation: "UNION" }))).rejects.toThrow("not found");
+    expect(calls).toHaveLength(0);
+  });
+});

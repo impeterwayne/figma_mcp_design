@@ -1,5 +1,6 @@
 import { getBounds } from "./serializers";
 import { makeSolidPaint, getParentNode, base64ToBytes, applyAutoLayout } from "./write-helpers";
+import { applyTokens, autoTextStyle, ensureTextStyle, linkTextStyle, logData, newLog, tokenPaint } from "./tokens";
 
 export const handleWriteCreateRequest = async (request: any) => {
   switch (request.type) {
@@ -12,13 +13,16 @@ export const handleWriteCreateRequest = async (request: any) => {
       frame.y = p.y != null ? p.y : 0;
       if (p.name) frame.name = p.name;
       if (p.fillColor) frame.fills = [makeSolidPaint(p.fillColor)];
+      if (p.cornerRadius != null) frame.cornerRadius = Number(p.cornerRadius);
       applyAutoLayout(frame, p);
+      const log = newLog();
+      await applyTokens(frame, p, log);
       (parent as any).appendChild(frame);
       figma.commitUndo();
       return {
         type: request.type,
         requestId: request.requestId,
-        data: { id: frame.id, name: frame.name, type: frame.type, bounds: getBounds(frame) },
+        data: { id: frame.id, name: frame.name, type: frame.type, bounds: getBounds(frame), ...logData(log) },
       };
     }
 
@@ -32,12 +36,14 @@ export const handleWriteCreateRequest = async (request: any) => {
       if (p.name) rect.name = p.name;
       if (p.fillColor) rect.fills = [makeSolidPaint(p.fillColor)];
       if (p.cornerRadius != null) rect.cornerRadius = p.cornerRadius;
+      const log = newLog();
+      await applyTokens(rect, p, log);
       (parent as any).appendChild(rect);
       figma.commitUndo();
       return {
         type: request.type,
         requestId: request.requestId,
-        data: { id: rect.id, name: rect.name, type: rect.type, bounds: getBounds(rect) },
+        data: { id: rect.id, name: rect.name, type: rect.type, bounds: getBounds(rect), ...logData(log) },
       };
     }
 
@@ -50,35 +56,48 @@ export const handleWriteCreateRequest = async (request: any) => {
       ellipse.y = p.y != null ? p.y : 0;
       if (p.name) ellipse.name = p.name;
       if (p.fillColor) ellipse.fills = [makeSolidPaint(p.fillColor)];
+      const log = newLog();
+      await applyTokens(ellipse, p, log);
       (parent as any).appendChild(ellipse);
       figma.commitUndo();
       return {
         type: request.type,
         requestId: request.requestId,
-        data: { id: ellipse.id, name: ellipse.name, type: ellipse.type, bounds: getBounds(ellipse) },
+        data: { id: ellipse.id, name: ellipse.name, type: ellipse.type, bounds: getBounds(ellipse), ...logData(log) },
       };
     }
 
     case "create_text": {
       const p = request.params || {};
       const parent = await getParentNode(p.parentId);
-      const fontFamily = p.fontFamily || "Inter";
-      const fontStyle = p.fontStyle || "Regular";
-      await figma.loadFontAsync({ family: fontFamily, style: fontStyle });
       const textNode = figma.createText();
-      textNode.fontName = { family: fontFamily, style: fontStyle };
-      if (p.fontSize != null) textNode.fontSize = Number(p.fontSize);
+      const log = newLog();
+      // A named style is reused or created from the font params. Without a name the
+      // raw font is set, then linked to (or saved as) a matching style below.
+      const style = p.textStyle ? await ensureTextStyle(p.textStyle, p, log) : null;
+      if (style) {
+        await linkTextStyle(textNode, style);
+      } else {
+        const fontFamily = p.fontFamily || "Inter";
+        const fontStyle = p.fontStyle || "Regular";
+        await figma.loadFontAsync({ family: fontFamily, style: fontStyle });
+        textNode.fontName = { family: fontFamily, style: fontStyle };
+        if (p.fontSize != null) textNode.fontSize = Number(p.fontSize);
+      }
       textNode.characters = p.text || "";
+      if (!style && p.link !== false) await autoTextStyle(textNode, log);
       textNode.x = p.x != null ? p.x : 0;
       textNode.y = p.y != null ? p.y : 0;
       if (p.name) textNode.name = p.name;
       if (p.fillColor) textNode.fills = [makeSolidPaint(p.fillColor)];
+      const fill = await tokenPaint(p.fillVariable, p.fillColor, undefined, p.link !== false, log);
+      if (fill) textNode.fills = [fill];
       (parent as any).appendChild(textNode);
       figma.commitUndo();
       return {
         type: request.type,
         requestId: request.requestId,
-        data: { id: textNode.id, name: textNode.name, type: textNode.type, bounds: getBounds(textNode) },
+        data: { id: textNode.id, name: textNode.name, type: textNode.type, bounds: getBounds(textNode), ...logData(log) },
       };
     }
 
@@ -100,6 +119,53 @@ export const handleWriteCreateRequest = async (request: any) => {
         type: request.type,
         requestId: request.requestId,
         data: { id: rect.id, name: rect.name, type: rect.type, bounds: getBounds(rect) },
+      };
+    }
+
+    case "create_svg": {
+      const p = request.params || {};
+      if (!p.svg) throw new Error("svg is required");
+      const parent = await getParentNode(p.parentId);
+      const variable = p.colorVariableId ? await figma.variables.getVariableByIdAsync(p.colorVariableId) : null;
+      if (p.colorVariableId && !variable) throw new Error(`Variable not found: ${p.colorVariableId}`);
+      if (variable && variable.resolvedType !== "COLOR") throw new Error(`Variable ${p.colorVariableId} is ${variable.resolvedType}, not COLOR`);
+
+      let svgNode: FrameNode;
+      try {
+        svgNode = figma.createNodeFromSvg(p.svg);
+      } catch (e) {
+        throw new Error(`Figma could not parse the SVG: ${e instanceof Error ? e.message : String(e)}`);
+      }
+      if (p.name) svgNode.name = p.name;
+      // Uniform scale keeps the aspect ratio and scales strokes with the shape;
+      // with both sides given the icon fits inside that box.
+      const factors = [p.width && p.width / svgNode.width, p.height && p.height / svgNode.height].filter((f) => f > 0);
+      if (factors.length > 0) svgNode.rescale(Math.min(...factors));
+      svgNode.x = p.x != null ? p.x : 0;
+      svgNode.y = p.y != null ? p.y : 0;
+
+      let recoloured = 0;
+      if (variable || p.color) {
+        const recolour = (paint: any) => {
+          if (paint.type !== "SOLID" || paint.visible === false) return paint;
+          recoloured++;
+          const opacity = paint.opacity ?? 1;
+          if (variable) return { ...figma.variables.setBoundVariableForPaint(paint, "color", variable), opacity };
+          return { ...makeSolidPaint(p.color), opacity };
+        };
+        for (const n of [svgNode, ...svgNode.findAll()] as any[]) {
+          for (const field of ["fills", "strokes"]) {
+            if (Array.isArray(n[field]) && n[field].length > 0) n[field] = n[field].map(recolour);
+          }
+        }
+      }
+
+      (parent as any).appendChild(svgNode);
+      figma.commitUndo();
+      return {
+        type: request.type,
+        requestId: request.requestId,
+        data: { id: svgNode.id, name: svgNode.name, type: svgNode.type, bounds: getBounds(svgNode), ...(recoloured > 0 ? { recoloured } : {}) },
       };
     }
 

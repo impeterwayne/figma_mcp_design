@@ -40,11 +40,11 @@ func contains(list []string, v string) bool {
 }
 
 func TestApplyProfile_FullKeepsEverything(t *testing.T) {
-	if got := len(toolNamesForProfile(t, "full")); got != 86 {
-		t.Errorf("full profile has %d tools, want 86", got)
+	if got := len(toolNamesForProfile(t, "full")); got != 89 {
+		t.Errorf("full profile has %d tools, want 89", got)
 	}
-	if got := len(toolNamesForProfile(t, "")); got != 86 {
-		t.Errorf("empty profile has %d tools, want 86 (defaults to full)", got)
+	if got := len(toolNamesForProfile(t, "")); got != 89 {
+		t.Errorf("empty profile has %d tools, want 89 (defaults to full)", got)
 	}
 }
 
@@ -77,7 +77,7 @@ func TestApplyProfile_DesignDropsRareTools(t *testing.T) {
 			t.Errorf("design profile should drop %s", dropped)
 		}
 	}
-	if len(names) >= 86 || len(names) < 50 {
+	if len(names) >= 89 || len(names) < 50 {
 		t.Errorf("design profile has %d tools, want 50..84", len(names))
 	}
 }

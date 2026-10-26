@@ -1,3 +1,4 @@
+import { getBounds } from "./serializers";
 import { getParentNode } from "./write-helpers";
 
 // Display name of a component property: "Label#12:0" -> "Label". Variant keys have no suffix,
@@ -167,6 +168,44 @@ export const handleWriteComponentRequest = async (request: any) => {
         type: request.type,
         requestId: request.requestId,
         data: { id: group.id, name: group.name, type: group.type },
+      };
+    }
+
+    case "boolean_operation": {
+      const p = request.params || {};
+      const nodeIds: string[] = request.nodeIds || [];
+      const op = String(p.operation || "").toUpperCase();
+      const combine: Record<string, (nodes: SceneNode[], parent: any, index: number) => SceneNode> = {
+        UNION: (n, parent, i) => figma.union(n, parent, i),
+        SUBTRACT: (n, parent, i) => figma.subtract(n, parent, i),
+        INTERSECT: (n, parent, i) => figma.intersect(n, parent, i),
+        EXCLUDE: (n, parent, i) => figma.exclude(n, parent, i),
+        FLATTEN: (n, parent, i) => figma.flatten(n, parent, i),
+      };
+      if (!combine[op]) throw new Error(`operation must be UNION, SUBTRACT, INTERSECT, EXCLUDE or FLATTEN, got: ${p.operation}`);
+      if (nodeIds.length < (op === "FLATTEN" ? 1 : 2)) throw new Error(`${op} needs at least ${op === "FLATTEN" ? 1 : 2} node(s)`);
+
+      const nodes: SceneNode[] = [];
+      for (const id of nodeIds) {
+        const n = await figma.getNodeByIdAsync(id);
+        if (!n || n.type === "DOCUMENT" || n.type === "PAGE") throw new Error(`Node not found or not a layer: ${id}`);
+        nodes.push(n as SceneNode);
+      }
+      const parent = nodes[0].parent as any;
+      if (!parent) throw new Error("Nodes must have a parent");
+      if (nodes.some((n) => n.parent !== parent)) {
+        throw new Error("All nodes must share the same parent; move them into one frame or group first");
+      }
+      // Insert where the lowest source layer was, so the result keeps its place in the stack.
+      const index = Math.min(...nodes.map((n) => parent.children.indexOf(n)));
+
+      const result = combine[op](nodes, parent, index);
+      if (p.name) result.name = p.name;
+      figma.commitUndo();
+      return {
+        type: request.type,
+        requestId: request.requestId,
+        data: { id: result.id, name: result.name, type: result.type, bounds: getBounds(result) },
       };
     }
 

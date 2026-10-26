@@ -30,6 +30,9 @@ func registerReadExportTools(s *server.MCPServer, node *Node) {
 		mcp.WithNumber("scale",
 			mcp.Description("Export scale for raster formats (default 2)"),
 		),
+		mcp.WithString("output",
+			mcp.Description("image (default): PNG/JPG as viewable images, SVG as markup text. base64: raw base64 in JSON for every format"),
+		),
 	), func(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 		raw, _ := req.GetArguments()["nodeIds"].([]interface{})
 		nodeIDs := toStringSlice(raw)
@@ -40,8 +43,15 @@ func registerReadExportTools(s *server.MCPServer, node *Node) {
 		if s, ok := req.GetArguments()["scale"].(float64); ok && s > 0 {
 			params["scale"] = s
 		}
+		output, _ := req.GetArguments()["output"].(string)
+		if output != "" && output != "image" && output != "base64" {
+			return mcp.NewToolResultError(fmt.Sprintf("output must be image or base64, got: %s", output)), nil
+		}
 		resp, err := node.Send(ctx, "get_screenshot", nodeIDs, params)
-		return renderResponse(resp, err)
+		if output == "base64" || err != nil || resp.Error != "" {
+			return renderResponse(resp, err)
+		}
+		return renderScreenshotContent(resp.Data)
 	})
 
 	s.AddTool(mcp.NewTool("export_frames_to_pdf",

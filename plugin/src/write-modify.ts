@@ -1,5 +1,6 @@
 import { getBounds } from "./serializers";
 import { makeSolidPaint, getParentNode, applyAutoLayout, loadNodeFonts, parseTextMeasure, base64ToBytes } from "./write-helpers";
+import { autoTextStyle, ensureTextStyle, linkTextStyle, logData, newLog, tokenPaint } from "./tokens";
 
 export const handleWriteModifyRequest = async (request: any) => {
   switch (request.type) {
@@ -42,6 +43,7 @@ export const handleWriteModifyRequest = async (request: any) => {
       const nodeIds = request.nodeIds || [];
       if (nodeIds.length === 0) throw new Error("nodeIds is required");
       const results: any[] = [];
+      const log = newLog();
       for (const nid of nodeIds) {
         const n = await figma.getNodeByIdAsync(nid) as any;
         if (!n) { results.push({ nodeId: nid, error: "Node not found" }); continue; }
@@ -52,24 +54,34 @@ export const handleWriteModifyRequest = async (request: any) => {
           try {
             await loadNodeFonts(n);
           } catch (err) {
-            if (!p.fontFamily && !p.fontStyle) throw err;
+            if (!p.fontFamily && !p.fontStyle && !p.textStyle) throw err;
           }
-          if (p.fontFamily || p.fontStyle) {
+          // With textStyle the font params only describe a style to create when it is
+          // missing; the linked style then owns the font. Layout props still apply.
+          const style = p.textStyle ? await ensureTextStyle(p.textStyle, p, log) : null;
+          if (style) await linkTextStyle(n, style);
+          if (!style && (p.fontFamily || p.fontStyle)) {
             const current = typeof n.fontName === "symbol" ? { family: "Inter", style: "Regular" } : n.fontName;
             const font = { family: p.fontFamily || current.family, style: p.fontStyle || current.style };
             await figma.loadFontAsync(font);
             n.fontName = font;
           }
-          if (p.fontSize != null) n.fontSize = Number(p.fontSize);
-          if (p.lineHeight != null) n.lineHeight = parseTextMeasure(p.lineHeight, true);
-          if (p.letterSpacing != null) n.letterSpacing = parseTextMeasure(p.letterSpacing, false);
+          if (!style) {
+            if (p.fontSize != null) n.fontSize = Number(p.fontSize);
+            if (p.lineHeight != null) n.lineHeight = parseTextMeasure(p.lineHeight, true);
+            if (p.letterSpacing != null) n.letterSpacing = parseTextMeasure(p.letterSpacing, false);
+            if (p.textCase) n.textCase = p.textCase;
+            if (p.textDecoration) n.textDecoration = p.textDecoration;
+          }
+          // Raw font edits are saved as / linked to a matching text style too.
+          const fontEdited = ["fontFamily", "fontStyle", "fontSize", "lineHeight", "letterSpacing"].some((k) => p[k] != null);
+          if (!style && fontEdited && p.link !== false) await autoTextStyle(n, log);
           if (p.textAlignHorizontal) n.textAlignHorizontal = p.textAlignHorizontal;
           if (p.textAlignVertical) n.textAlignVertical = p.textAlignVertical;
-          if (p.textCase) n.textCase = p.textCase;
-          if (p.textDecoration) n.textDecoration = p.textDecoration;
           if (p.textAutoResize) n.textAutoResize = p.textAutoResize;
           results.push({
             nodeId: n.id,
+            ...(style ? { textStyle: style.name } : {}),
             fontName: typeof n.fontName === "symbol" ? "mixed" : n.fontName,
             fontSize: typeof n.fontSize === "symbol" ? "mixed" : n.fontSize,
           });
@@ -78,7 +90,7 @@ export const handleWriteModifyRequest = async (request: any) => {
         }
       }
       figma.commitUndo();
-      return { type: request.type, requestId: request.requestId, data: { results } };
+      return { type: request.type, requestId: request.requestId, data: { results, ...logData(log) } };
     }
 
     case "set_image_fill": {
@@ -107,7 +119,9 @@ export const handleWriteModifyRequest = async (request: any) => {
       const node = await figma.getNodeByIdAsync(nodeId);
       if (!node) throw new Error(`Node not found: ${nodeId}`);
       if (!("fills" in node)) throw new Error(`Node ${nodeId} does not support fills`);
-      const newFill = makeSolidPaint(p.color, p.opacity != null ? p.opacity : undefined);
+      const log = newLog();
+      const newFill = await tokenPaint(p.colorVariable, p.color, p.opacity, p.link !== false, log)
+        ?? makeSolidPaint(p.color, p.opacity != null ? p.opacity : undefined);
       (node as any).fills = p.mode === "append"
         ? [...((node as any).fills as Paint[]), newFill]
         : [newFill];
@@ -115,7 +129,7 @@ export const handleWriteModifyRequest = async (request: any) => {
       return {
         type: request.type,
         requestId: request.requestId,
-        data: { id: node.id, name: node.name },
+        data: { id: node.id, name: node.name, ...logData(log) },
       };
     }
 
@@ -126,7 +140,9 @@ export const handleWriteModifyRequest = async (request: any) => {
       const node = await figma.getNodeByIdAsync(nodeId);
       if (!node) throw new Error(`Node not found: ${nodeId}`);
       if (!("strokes" in node)) throw new Error(`Node ${nodeId} does not support strokes`);
-      const newStroke = makeSolidPaint(p.color);
+      const log = newLog();
+      const newStroke = await tokenPaint(p.colorVariable, p.color, undefined, p.link !== false, log)
+        ?? makeSolidPaint(p.color);
       (node as any).strokes = p.mode === "append"
         ? [...((node as any).strokes as Paint[]), newStroke]
         : [newStroke];
@@ -135,7 +151,7 @@ export const handleWriteModifyRequest = async (request: any) => {
       return {
         type: request.type,
         requestId: request.requestId,
-        data: { id: node.id, name: node.name },
+        data: { id: node.id, name: node.name, ...logData(log) },
       };
     }
 

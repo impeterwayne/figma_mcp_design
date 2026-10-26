@@ -203,6 +203,26 @@ func ValidateRPC(tool string, nodeIDs []string, params map[string]interface{}) s
 			}
 		}
 
+	case "boolean_operation":
+		op, _ := params["operation"].(string)
+		switch op {
+		case "UNION", "SUBTRACT", "INTERSECT", "EXCLUDE":
+			if len(nodeIDs) < 2 {
+				return fmt.Sprintf("%s needs at least 2 nodes", op)
+			}
+		case "FLATTEN":
+			if len(nodeIDs) == 0 {
+				return "nodeIds is required and must not be empty"
+			}
+		default:
+			return fmt.Sprintf("operation must be UNION, SUBTRACT, INTERSECT, EXCLUDE or FLATTEN, got: %v", params["operation"])
+		}
+		for _, id := range nodeIDs {
+			if !ValidNodeID(id) {
+				return fmt.Sprintf("invalid nodeId: %s — must use colon format e.g. 4029:12345", id)
+			}
+		}
+
 	case "ungroup_nodes":
 		if len(nodeIDs) == 0 {
 			return "nodeIds is required and must not be empty"
@@ -411,8 +431,10 @@ func ValidateRPC(tool string, nodeIDs []string, params map[string]interface{}) s
 		if !ValidNodeID(nodeIDs[0]) {
 			return fmt.Sprintf("nodeId must use colon format e.g. 4029:12345, got: %s", nodeIDs[0])
 		}
-		if color, _ := params["color"].(string); color == "" {
-			return "color is required (hex string e.g. #FF5733)"
+		color, _ := params["color"].(string)
+		variable, _ := params["colorVariable"].(string)
+		if color == "" && variable == "" {
+			return "color (hex string e.g. #FF5733) or colorVariable is required"
 		}
 		if mode, ok := params["mode"].(string); ok && mode != "replace" && mode != "append" {
 			return "mode must be 'replace' or 'append'"
@@ -425,8 +447,10 @@ func ValidateRPC(tool string, nodeIDs []string, params map[string]interface{}) s
 		if !ValidNodeID(nodeIDs[0]) {
 			return fmt.Sprintf("nodeId must use colon format e.g. 4029:12345, got: %s", nodeIDs[0])
 		}
-		if color, _ := params["color"].(string); color == "" {
-			return "color is required (hex string e.g. #FF5733)"
+		color, _ := params["color"].(string)
+		variable, _ := params["colorVariable"].(string)
+		if color == "" && variable == "" {
+			return "color (hex string e.g. #FF5733) or colorVariable is required"
 		}
 		if mode, ok := params["mode"].(string); ok && mode != "replace" && mode != "append" {
 			return "mode must be 'replace' or 'append'"
@@ -507,6 +531,35 @@ func ValidateRPC(tool string, nodeIDs []string, params map[string]interface{}) s
 		}
 		if pid, ok := params["parentId"].(string); ok && pid != "" && !ValidNodeID(pid) {
 			return fmt.Sprintf("parentId must use colon format e.g. 4029:12345, got: %s", pid)
+		}
+
+	case "create_svg":
+		svg, _ := params["svg"].(string)
+		if !strings.Contains(svg, "<svg") {
+			return "svg must contain an <svg> element"
+		}
+		if len(svg) > maxSVGBytes {
+			return fmt.Sprintf("svg is %d bytes, max %d", len(svg), maxSVGBytes)
+		}
+		pid, _ := params["parentId"].(string)
+		if pid == "" {
+			return "parentId is required"
+		}
+		if !ValidNodeID(pid) {
+			return fmt.Sprintf("parentId must use colon format e.g. 4029:12345, got: %s", pid)
+		}
+		color, _ := params["color"].(string)
+		vid, _ := params["colorVariableId"].(string)
+		if color != "" && vid != "" {
+			return "pass color or colorVariableId, not both"
+		}
+		if color != "" && !hexColorRe.MatchString(color) {
+			return fmt.Sprintf("color must be #RRGGBB, got: %s", color)
+		}
+		for _, key := range []string{"width", "height"} {
+			if v, ok := params[key].(float64); ok && v <= 0 {
+				return fmt.Sprintf("%s must be greater than 0", key)
+			}
 		}
 
 	// ── Style tools ──────────────────────────────────────────────────────────
@@ -978,8 +1031,11 @@ func ValidateRPC(tool string, nodeIDs []string, params map[string]interface{}) s
 			return fmt.Sprintf("nodeId must use colon format e.g. 4029:12345, got: %s", nodeIDs[0])
 		}
 		effects, ok := params["effects"]
+		if style, _ := params["effectStyle"].(string); style != "" && !ok {
+			return ""
+		}
 		if !ok {
-			return "effects array is required"
+			return "effects array or effectStyle is required"
 		}
 		effectList, ok := effects.([]interface{})
 		if !ok {
@@ -996,6 +1052,25 @@ func ValidateRPC(tool string, nodeIDs []string, params map[string]interface{}) s
 			default:
 				return fmt.Sprintf("effects[%d].type must be DROP_SHADOW, INNER_SHADOW, LAYER_BLUR, or BACKGROUND_BLUR, got: %s", i, t)
 			}
+		}
+
+	case "design_system_audit":
+		if len(nodeIDs) > 0 && !ValidNodeID(nodeIDs[0]) {
+			return fmt.Sprintf("nodeId must use colon format e.g. 0:1, got: %s", nodeIDs[0])
+		}
+		checks, _ := params["checks"].([]string)
+		if raw, ok := params["checks"].([]interface{}); ok {
+			checks = toStringSlice(raw)
+		}
+		if checks != nil {
+			for _, c := range checks {
+				if !containsString(auditChecks, c) {
+					return fmt.Sprintf("checks must be from %v, got: %s", auditChecks, c)
+				}
+			}
+		}
+		if l, ok := params["limit"].(float64); ok && l <= 0 {
+			return "limit must be positive"
 		}
 
 	case "create_section":

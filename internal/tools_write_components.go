@@ -2,6 +2,7 @@ package internal
 
 import (
 	"context"
+	"strings"
 
 	"github.com/mark3labs/mcp-go/mcp"
 	"github.com/mark3labs/mcp-go/server"
@@ -40,6 +41,35 @@ func registerWriteComponentTools(s *server.MCPServer, node *Node) {
 			params["name"] = name
 		}
 		resp, err := node.Send(ctx, "group_nodes", nodeIDs, params)
+		return renderResponse(resp, err)
+	})
+
+	s.AddTool(mcp.NewTool("boolean_operation",
+		mcp.WithDescription("Combine shapes with UNION, SUBTRACT, INTERSECT or EXCLUDE (2+ nodes, editable result), or FLATTEN 1+ nodes into a single VECTOR (not reversible). Nodes must share a parent; the result keeps their layer position. SUBTRACT cuts the upper layers out of the bottom-most one, so layer order matters, not nodeIds order."),
+		mcp.WithArray("nodeIds",
+			mcp.Required(),
+			mcp.Description("Node IDs in colon format, all with the same parent"),
+			mcp.WithStringItems(),
+		),
+		mcp.WithString("operation",
+			mcp.Required(),
+			mcp.Description("UNION, SUBTRACT, INTERSECT, EXCLUDE or FLATTEN"),
+		),
+		mcp.WithString("name", mcp.Description("Optional name for the result")),
+	), func(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+		raw, _ := req.GetArguments()["nodeIds"].([]interface{})
+		nodeIDs := toStringSlice(raw)
+		params := map[string]interface{}{}
+		if op, ok := req.GetArguments()["operation"].(string); ok {
+			params["operation"] = strings.ToUpper(op)
+		}
+		if name, ok := req.GetArguments()["name"].(string); ok && name != "" {
+			params["name"] = name
+		}
+		if msg := ValidateRPC("boolean_operation", nodeIDs, params); msg != "" {
+			return mcp.NewToolResultError(msg), nil
+		}
+		resp, err := node.Send(ctx, "boolean_operation", nodeIDs, params)
 		return renderResponse(resp, err)
 	})
 

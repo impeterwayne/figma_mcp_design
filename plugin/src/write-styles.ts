@@ -1,4 +1,5 @@
 import { makeSolidPaint, hexToRgb, loadNodeFonts } from "./write-helpers";
+import { ensureEffectStyle, logData, newLog } from "./tokens";
 
 const channelHex = (v: number) => Math.round(v * 255).toString(16).padStart(2, "0").toUpperCase();
 const paintHex = (paint: any) => `#${channelHex(paint.color.r)}${channelHex(paint.color.g)}${channelHex(paint.color.b)}`;
@@ -495,10 +496,21 @@ export const handleWriteStyleRequest = async (request: any) => {
       const p = request.params || {};
       const nodeId = request.nodeIds && request.nodeIds[0];
       if (!nodeId) throw new Error("nodeId is required");
-      if (!Array.isArray(p.effects)) throw new Error("effects array is required");
+      if (!Array.isArray(p.effects) && !p.effectStyle) throw new Error("effects array is required (or pass effectStyle)");
       const node = await figma.getNodeByIdAsync(nodeId) as any;
       if (!node) throw new Error(`Node not found: ${nodeId}`);
       if (!("effects" in node)) throw new Error(`Node ${nodeId} does not support effects`);
+      // A named style is reused, matched by value, or created from p.effects;
+      // raw effects alone link to an identical existing style.
+      const log = newLog();
+      const style = p.effectStyle || (p.link !== false && Array.isArray(p.effects) && p.effects.length > 0)
+        ? await ensureEffectStyle(p.effectStyle, p.effects, log, p.link !== false)
+        : null;
+      if (style) {
+        await node.setEffectStyleIdAsync(style.id);
+        figma.commitUndo();
+        return { type: request.type, requestId: request.requestId, data: { id: node.id, name: node.name, effectStyle: style.name, ...logData(log) } };
+      }
       const effects: Effect[] = p.effects.map((e: any) => {
         switch (e.type) {
           case "DROP_SHADOW":

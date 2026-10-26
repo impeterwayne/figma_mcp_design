@@ -198,3 +198,87 @@ describe("create_section", () => {
     expect(res?.data.id).toBe("section:new");
   });
 });
+
+// ── create_svg ────────────────────────────────────────────────────────────────
+
+describe("create_svg", () => {
+  let parent: any;
+  let svgChildren: any[];
+  let lastSvg: string | undefined;
+
+  const install = (opts: { throws?: boolean } = {}) => {
+    parent = { id: "1:2", children: [] as any[], appendChild(c: any) { this.children.push(c); } };
+    mockNodes["1:2"] = parent;
+    svgChildren = [
+      { type: "VECTOR", fills: [{ type: "SOLID", color: { r: 0, g: 0, b: 0 }, opacity: 0.5 }], strokes: [] },
+      { type: "VECTOR", fills: [], strokes: [{ type: "SOLID", color: { r: 0, g: 0, b: 0 } }, { type: "SOLID", visible: false, color: { r: 0, g: 0, b: 0 } }] },
+      { type: "VECTOR", fills: [{ type: "GRADIENT_LINEAR", gradientStops: [] }], strokes: [] },
+    ];
+    const f = (globalThis as any).figma;
+    f.createNodeFromSvg = (svg: string) => {
+      if (opts.throws) throw new Error("bad svg");
+      lastSvg = svg;
+      return {
+        id: "svg:new", name: "Svg", type: "FRAME", x: 0, y: 0, width: 48, height: 24,
+        fills: [], strokes: [],
+        rescale(s: number) { this.width *= s; this.height *= s; },
+        findAll: () => svgChildren,
+      };
+    };
+    f.variables = {
+      getVariableByIdAsync: async (id: string) =>
+        id === "VariableID:1:1" ? { id, resolvedType: "COLOR" } : id === "VariableID:1:2" ? { id, resolvedType: "FLOAT" } : null,
+      setBoundVariableForPaint: (paint: any, _field: string, v: any) => ({ ...paint, boundVariables: { color: { id: v.id } } }),
+    };
+  };
+
+  it("inserts the SVG into the parent at the given position", async () => {
+    install();
+    const res = await handleWriteCreateRequest(makeRequest("create_svg", [], { svg: "<svg/>", parentId: "1:2", x: 5, y: 6, name: "Search" }));
+    expect(lastSvg).toBe("<svg/>");
+    expect(parent.children).toHaveLength(1);
+    expect(res?.data).toMatchObject({ id: "svg:new", name: "Search", bounds: { x: 5, y: 6, width: 48, height: 24 } });
+    expect(res?.data.recoloured).toBeUndefined();
+    expect(commitUndoCalled).toBe(true);
+  });
+
+  it("scales uniformly from width alone", async () => {
+    install();
+    const res = await handleWriteCreateRequest(makeRequest("create_svg", [], { svg: "<svg/>", parentId: "1:2", width: 24 }));
+    expect(res?.data.bounds).toMatchObject({ width: 24, height: 12 });
+  });
+
+  it("fits inside the box when width and height are both given", async () => {
+    install();
+    const res = await handleWriteCreateRequest(makeRequest("create_svg", [], { svg: "<svg/>", parentId: "1:2", width: 96, height: 24 }));
+    expect(res?.data.bounds).toMatchObject({ width: 48, height: 24 });
+  });
+
+  it("binds a colour variable to visible solid fills and strokes, keeping opacity", async () => {
+    install();
+    const res = await handleWriteCreateRequest(makeRequest("create_svg", [], { svg: "<svg/>", parentId: "1:2", colorVariableId: "VariableID:1:1" }));
+    expect(res?.data.recoloured).toBe(2);
+    expect(svgChildren[0].fills[0]).toMatchObject({ opacity: 0.5, boundVariables: { color: { id: "VariableID:1:1" } } });
+    expect(svgChildren[1].strokes[0].boundVariables).toBeDefined();
+    expect(svgChildren[1].strokes[1].boundVariables).toBeUndefined();
+    expect(svgChildren[2].fills[0].type).toBe("GRADIENT_LINEAR");
+  });
+
+  it("recolours with a hex colour", async () => {
+    install();
+    await handleWriteCreateRequest(makeRequest("create_svg", [], { svg: "<svg/>", parentId: "1:2", color: "#FF0000" }));
+    expect(svgChildren[0].fills[0]).toMatchObject({ type: "SOLID", color: { r: 1, g: 0, b: 0 }, opacity: 0.5 });
+  });
+
+  it("rejects missing or non-colour variables before creating anything", async () => {
+    install();
+    await expect(handleWriteCreateRequest(makeRequest("create_svg", [], { svg: "<svg/>", parentId: "1:2", colorVariableId: "VariableID:9:9" }))).rejects.toThrow("Variable not found");
+    await expect(handleWriteCreateRequest(makeRequest("create_svg", [], { svg: "<svg/>", parentId: "1:2", colorVariableId: "VariableID:1:2" }))).rejects.toThrow("not COLOR");
+    expect(parent.children).toHaveLength(0);
+  });
+
+  it("reports SVG that Figma cannot parse", async () => {
+    install({ throws: true });
+    await expect(handleWriteCreateRequest(makeRequest("create_svg", [], { svg: "<svg", parentId: "1:2" }))).rejects.toThrow("could not parse");
+  });
+});

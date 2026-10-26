@@ -5,6 +5,7 @@ import { handleWriteVariableRequest } from "./write-variables";
 import { handleWriteComponentRequest } from "./write-components";
 import { handleWritePrototypeRequest } from "./write-prototype";
 import { handleWritePageRequest } from "./write-page";
+import { handleWriteAuditRequest } from "./write-audit";
 
 export const handleWriteRequest = async (request: any) =>
   (await handleWriteCreateRequest(request)) ??
@@ -13,4 +14,5 @@ export const handleWriteRequest = async (request: any) =>
   (await handleWriteVariableRequest(request)) ??
   (await handleWriteComponentRequest(request)) ??
   (await handleWritePrototypeRequest(request)) ??
-  (await handleWritePageRequest(request));
+  (await handleWritePageRequest(request)) ??
+  (await handleWriteAuditRequest(request));

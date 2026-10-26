@@ -6,7 +6,7 @@ A Go stdio MCP server that connects AI clients to a local Figma Desktop plugin o
 
 This repo contains three cooperating pieces:
 
-- an MCP server exposing 86 tools and 18 design-system prompts over stdio
+- an MCP server exposing 89 tools and 18 design-system prompts over stdio
 - a Figma Desktop plugin that talks to the server on `ws://127.0.0.1:1995` by default
 - a suite of agent skills (`.agents/skills/`) for UI/UX design, design systems, branding, banners, slides, and Figma workflows
 
@@ -106,8 +106,8 @@ Every tool schema is loaded into the AI client's context each session. Pick the 
 
 | Profile | Tools | Schema size | Use for |
 |---------|-------|-------------|---------|
-| `full` (default) | 86 | ~66 KB | Everything, including prototyping, PDF export and bulk renaming |
-| `design` | 63 | ~50 KB | Building and editing UI, design systems and components |
+| `full` (default) | 89 | ~66 KB | Everything, including prototyping, PDF export and bulk renaming |
+| `design` | 66 | ~50 KB | Building and editing UI, design systems and components |
 | `read` | 22 | ~14 KB | Inspecting, reviewing and exporting; no write tools |
 
 ```json
@@ -116,7 +116,9 @@ Every tool schema is loaded into the AI client's context each session. Pick the 
 
 ## Available tools
 
-86 tools — 21 read/export tools and 65 write/automation tools against your live Figma document.
+89 tools — 21 read/export tools and 68 write/automation tools against your live Figma document.
+
+**Design tokens.** Create and set tools take token parameters (`textStyle`, `fillVariable`, `strokeVariable`, `colorVariable`, `radiusVariable`, `paddingVariable`, `gapVariable`, `effectStyle`). A name is reused when it exists, or when another token already has the same value; otherwise it is created from the raw value passed with it, so a file with no design system builds one as screens are made. Raw values without a name follow the same rule with a generated name (`color/1A1415`, `radius/16`, `space/12`, `Text/Inter Bold 16`, `Effect/…`), so every layer the AI creates is tokenised; `link: false` keeps raw values. `design_system_audit` finds whatever is still unlinked, and `fix` + `create` tokenises an existing design.
 
 ### Document and node inspection
 
@@ -150,7 +152,7 @@ Every tool schema is loaded into the AI client's context each session. Pick the 
 
 | Tool | What it does |
 |------|--------------|
-| `get_screenshot` | Exports nodes as base64 image data held in memory (`PNG`, `SVG`, `JPG`, `PDF`). |
+| `get_screenshot` | Exports nodes held in memory: PNG/JPG as viewable images, SVG as markup text, PDF as base64 (`output: "base64"` returns base64 for every format). |
 | `save_screenshots` | Exports nodes straight to disk, returning path, size, and dimensions - no base64 in the response. |
 | `export_frames_to_pdf` | Exports multiple frames in order and merges them into a single multi-page PDF file on disk. |
 
@@ -162,8 +164,9 @@ Every tool schema is loaded into the AI client's context each session. Pick the 
 | `create_section` | Creates a Figma Section node on the current page to organize frames and groups. |
 | `create_rectangle` | Creates a rectangle with optional fill color and corner radius. |
 | `create_ellipse` | Creates an ellipse or circle with optional fill color. |
-| `create_text` | Creates a text node, automatically loading the requested font family and style. |
+| `create_text` | Creates a text node, automatically loading the requested font family and style. `textStyle` / `fillVariable` link it to the design system: an existing token is reused (by name or equal value), a missing one is created from the font/colour passed. |
 | `import_image` | Imports a base64-encoded PNG or JPG image into Figma as an image-filled node. |
+| `create_svg` | Inserts SVG markup or a `.svg` file from the working directory as editable vectors, scaled to size and optionally recoloured with a colour variable. |
 | `create_instance` | Creates an instance of a component (or a component set's default variant) inside a parent, optionally setting its properties. |
 | `create_component` | Converts an existing FRAME node into a reusable COMPONENT in place. |
 
@@ -172,10 +175,10 @@ Every tool schema is loaded into the AI client's context each session. Pick the 
 | Tool | What it does |
 |------|--------------|
 | `set_text` | Updates the text copy of a TEXT node, or of many nodes in one call via `items`. |
-| `set_text_properties` | Changes typography on one or more TEXT nodes: font family/style, size, line height, letter spacing, alignment, case, decoration, auto-resize. |
+| `set_text_properties` | Changes typography on one or more TEXT nodes: `textStyle`, or font family/style, size, line height, letter spacing, alignment, case, decoration, auto-resize. |
 | `set_image_fill` | Fills one or more existing nodes with a base64 image (`FILL`, `FIT`, `CROP`, `TILE`). |
 | `find_replace_text` | Finds and replaces text (plain string or regex) across all TEXT nodes in a subtree or page. |
-| `set_fills` | Sets or appends a solid fill color (`#RRGGBB` or `#RRGGBBAA`) and opacity on a node. |
+| `set_fills` | Sets or appends a solid fill color (`#RRGGBB` or `#RRGGBBAA`), or a bound `colorVariable`, and opacity on a node. `set_strokes` takes `colorVariable` too. |
 | `set_strokes` | Sets or appends a stroke color and stroke weight on a node. |
 | `set_opacity` | Sets opacity (`0` to `1`) on one or more nodes. |
 | `set_corner_radius` | Sets uniform or per-corner radius on one or more nodes. |
@@ -207,9 +210,10 @@ Every tool schema is loaded into the AI client's context each session. Pick the 
 | `rename_style` | Renames any local style (paint, text, effect, or grid) in place while preserving node linkages. |
 | `delete_style` | Deletes a local style by ID. |
 | `apply_style_to_node` | Links an existing paint, text, effect, or grid style to a node. |
-| `set_effects` | Applies drop shadow, inner shadow, or blur effects directly to a node. |
+| `set_effects` | Links an `effectStyle`, or applies drop shadow, inner shadow, or blur effects directly to a node. |
 | `replace_colors` | Recolours a whole subtree in one call: maps hex colours (fills, strokes, gradient stops, shadows, per-range text colours) to variables or new hex values. `dryRun` lists colours in use; `nodeTypes` limits it to e.g. TEXT. |
 | `snap_to_tokens` | Binds auto-layout padding/gap and corner radii in a subtree to the nearest spacing/radius variables (pills use the full radius). `dryRun` reports value changes. |
+| `design_system_audit` | Lists layers not linked to the design system (raw colours, unstyled text, loose effects, off-scale radius/spacing, repeated frames) with the matching token; `fix` binds exact matches. |
 | `bind_variable_to_node` | Binds a local variable (`COLOR`, `FLOAT`, `BOOLEAN`) to a node property (fills, strokes, spacing, radius, etc.). |
 | `set_description` | Sets or clears documentation text on a component, component set, style, or variable. |
 
@@ -233,6 +237,7 @@ Every tool schema is loaded into the AI client's context each session. Pick the 
 |------|--------------|
 | `group_nodes` | Groups two or more sibling nodes into a `GROUP`. |
 | `ungroup_nodes` | Ungroups one or more `GROUP` nodes, moving their children into the parent. |
+| `boolean_operation` | Combines shapes with `UNION`, `SUBTRACT`, `INTERSECT` or `EXCLUDE`, or `FLATTEN`s nodes into one vector, keeping the result at the same layer position. |
 | `swap_component` | Swaps the main component of an `INSTANCE` node while preserving position and bounds. |
 | `set_instance_properties` | Sets variant, boolean, and text properties on an instance by display name (e.g. `Size`, `Label`). |
 | `detach_instance` | Detaches one or more component instances into plain frames. |
