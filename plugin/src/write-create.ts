@@ -2,6 +2,17 @@ import { getBounds } from "./serializers";
 import { makeSolidPaint, getParentNode, base64ToBytes, applyAutoLayout } from "./write-helpers";
 import { applyTokens, autoTextStyle, colorKey, ensureTextStyle, ensureVariable, hexToRgba, linkTextStyle, logData, newLog, tokenPaint } from "./tokens";
 
+// A node is created before its token params are resolved; when one fails (unknown
+// variable, missing style) the half-built node must not stay on the page.
+const discardOnError = async (node: any, fn: () => Promise<unknown>) => {
+  try {
+    await fn();
+  } catch (e) {
+    node.remove?.();
+    throw e;
+  }
+};
+
 export const handleWriteCreateRequest = async (request: any) => {
   switch (request.type) {
     case "create_frame": {
@@ -14,9 +25,11 @@ export const handleWriteCreateRequest = async (request: any) => {
       if (p.name) frame.name = p.name;
       if (p.fillColor) frame.fills = [makeSolidPaint(p.fillColor)];
       if (p.cornerRadius != null) frame.cornerRadius = Number(p.cornerRadius);
-      applyAutoLayout(frame, p);
       const log = newLog();
-      await applyTokens(frame, p, log);
+      await discardOnError(frame, async () => {
+        applyAutoLayout(frame, p);
+        await applyTokens(frame, p, log);
+      });
       (parent as any).appendChild(frame);
       figma.commitUndo();
       return {
@@ -37,7 +50,7 @@ export const handleWriteCreateRequest = async (request: any) => {
       if (p.fillColor) rect.fills = [makeSolidPaint(p.fillColor)];
       if (p.cornerRadius != null) rect.cornerRadius = p.cornerRadius;
       const log = newLog();
-      await applyTokens(rect, p, log);
+      await discardOnError(rect, () => applyTokens(rect, p, log));
       (parent as any).appendChild(rect);
       figma.commitUndo();
       return {
@@ -57,7 +70,7 @@ export const handleWriteCreateRequest = async (request: any) => {
       if (p.name) ellipse.name = p.name;
       if (p.fillColor) ellipse.fills = [makeSolidPaint(p.fillColor)];
       const log = newLog();
-      await applyTokens(ellipse, p, log);
+      await discardOnError(ellipse, () => applyTokens(ellipse, p, log));
       (parent as any).appendChild(ellipse);
       figma.commitUndo();
       return {
@@ -72,6 +85,7 @@ export const handleWriteCreateRequest = async (request: any) => {
       const parent = await getParentNode(p.parentId);
       const textNode = figma.createText();
       const log = newLog();
+      await discardOnError(textNode, async () => {
       // A named style is reused or created from the font params. Without a name the
       // raw font is set, then linked to (or saved as) a matching style below.
       const style = p.textStyle ? await ensureTextStyle(p.textStyle, p, log) : null;
@@ -92,6 +106,7 @@ export const handleWriteCreateRequest = async (request: any) => {
       if (p.fillColor) textNode.fills = [makeSolidPaint(p.fillColor)];
       const fill = await tokenPaint(p.fillVariable, p.fillColor, undefined, p.link !== false, log);
       if (fill) textNode.fills = [fill];
+      });
       (parent as any).appendChild(textNode);
       figma.commitUndo();
       return {
@@ -183,6 +198,19 @@ export const handleWriteCreateRequest = async (request: any) => {
       const node = await figma.getNodeByIdAsync(nodeId) as any;
       if (!node) throw new Error(`Node not found: ${nodeId}`);
       if (node.type !== "FRAME") throw new Error(`Node ${nodeId} is not a FRAME — only frames can be converted to components`);
+
+      // In-place conversion keeps everything: sizing modes, bound variables,
+      // effect styles, strokes. The manual copy below is the fallback.
+      if (typeof (figma as any).createComponentFromNode === "function") {
+        const converted = (figma as any).createComponentFromNode(node) as ComponentNode;
+        if (p.name) converted.name = p.name;
+        figma.commitUndo();
+        return {
+          type: request.type,
+          requestId: request.requestId,
+          data: { id: converted.id, name: converted.name, type: converted.type, bounds: getBounds(converted) },
+        };
+      }
 
       const parent = node.parent as any;
       const index = parent.children.indexOf(node);

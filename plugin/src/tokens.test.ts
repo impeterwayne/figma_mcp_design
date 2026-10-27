@@ -3,7 +3,7 @@ import { handleWriteCreateRequest } from "./write-create";
 import { handleWriteModifyRequest } from "./write-modify";
 import { handleWriteStyleRequest } from "./write-styles";
 import { handleWriteAuditRequest } from "./write-audit";
-import { resolveVariable } from "./tokens";
+import { boundPaint, resolveVariable } from "./tokens";
 
 // ── Figma global mock ─────────────────────────────────────────────────────────
 
@@ -36,6 +36,7 @@ const makeNode = (id: string, type: string, props: any = {}) => {
     setBoundVariable(field: string, v: any) { this.boundVariables[field] = { id: v.id }; },
     async setEffectStyleIdAsync(sid: string) { this.effectStyleId = sid; },
     async setTextStyleIdAsync(sid: string) { this.textStyleId = sid; },
+    remove() { this.removed = true; },
     ...props,
   };
   mockNodes[id] = node;
@@ -108,6 +109,15 @@ describe("token params on create tools", () => {
     expect(f.effectStyleId).toBe("S:glow");
     expect(res?.data.tokens.created).toEqual([]);
     expect(res?.data.tokens.reused).toContain("surface/1");
+  });
+
+  it("removes the half-built node when a token param fails, so nothing is left on the page", async () => {
+    await expect(handleWriteCreateRequest(req("create_frame", [], { fillVariable: "no/such" }))).rejects.toThrow("Variable not found");
+    expect(created[0].removed).toBe(true);
+    await expect(handleWriteCreateRequest(req("create_rectangle", [], { fillVariable: "no/such" }))).rejects.toThrow("Variable not found");
+    expect(created[1].removed).toBe(true);
+    await expect(handleWriteCreateRequest(req("create_text", [], { text: "x", textStyle: "No/Style" }))).rejects.toThrow("Text style not found");
+    expect(created[2].removed).toBe(true);
   });
 
   it("create_text uses the text style instead of raw font params", async () => {
@@ -294,5 +304,18 @@ describe("design_system_audit", () => {
 
   it("returns undefined for other commands", async () => {
     expect(await handleWriteAuditRequest(req("get_node"))).toBeUndefined();
+  });
+});
+
+describe("boundPaint", () => {
+  it("seeds the paint with the variable's own colour, not black", () => {
+    (globalThis as any).figma = {
+      variables: { setBoundVariableForPaint: (paint: any, _f: string, v: any) => ({ ...paint, boundVariables: { color: { id: v.id } } }) },
+    };
+    const paint: any = boundPaint({ id: "V:1", valuesByMode: { m1: { r: 1, g: 0.5, b: 0, a: 1 } } } as any);
+    expect(paint.color).toEqual({ r: 1, g: 0.5, b: 0 });
+    expect(paint.boundVariables.color.id).toBe("V:1");
+    const alias: any = boundPaint({ id: "V:2", valuesByMode: { m1: { type: "VARIABLE_ALIAS", id: "V:1" } } } as any);
+    expect(alias.color).toEqual({ r: 0, g: 0, b: 0 });
   });
 });

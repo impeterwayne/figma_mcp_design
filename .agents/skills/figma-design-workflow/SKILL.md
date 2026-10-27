@@ -60,16 +60,22 @@ Follow this 5-stage pipeline for reliable, deterministic Figma MCP operations:
    - Call `create_text` with `parentId`, font family, style, and size from the type scale.
    - Adjust existing text with **one** `set_text_properties` call over all affected `nodeIds` (fontFamily, fontStyle, fontSize, lineHeight `24`/`"150%"`/`"AUTO"`, letterSpacing, textAlignHorizontal, textCase, textAutoResize). Never delete and recreate text to restyle it.
    - Change copy on many nodes with one `set_text` call using `items: [{nodeId, text}, ...]`.
-5. **Icons:** Insert every icon with `create_svg` `path`, so the markup never passes through the conversation. Per screen:
-   1. **Icon folder:** the folder the user names (e.g. `assets/svg`), else `icons/`. It must be inside the working directory.
-   2. **List it first** (`ls <folder>`, names only, never read the files) and match the icons the screen needs against those names. The user's files always win over downloads.
-   3. **Download only what is missing** into the same folder, from the icon set the app already uses (one set for the whole app, e.g. Phosphor `ph`, Lucide `lucide`, Material Symbols `material-symbols`), in one Bash command:
-      ```bash
-      d=assets/svg; mkdir -p $d && for i in heart magnifying-glass; do curl -sf -o $d/$i.svg https://api.iconify.design/ph/$i.svg || echo "missing: $i"; done
-      ```
-      For a `missing:` name, look it up at `https://api.iconify.design/search?query=<word>&prefix=ph&limit=5`.
-   4. **Insert:** `create_svg(path: "<folder>/<name>.svg", parentId, width: 24, colorVariable: "icon/primary")`; the colour token is reused or created like other tokens.
-   - Do not draw icons from shapes or paste SVG markup into `svg` when a file can be used.
+5. **Icons:** Icons are components, built once with the design system and used on screens only as instances.
+   - **Icon set:** one set for the whole app. Default Phosphor (`ph`); others: Lucide `lucide`, Material Symbols `material-symbols`. The choice is recorded in `<icon folder>/ICONSET` (e.g. `ph`); read it before downloading and never mix sets.
+   - **Build the icon library** (design-system stage, and whenever a screen needs an icon the library lacks):
+     1. **Check Figma first:** `search_nodes("Icon/", type COMPONENT)`. An existing `Icon/<name>` component is always reused.
+     2. **Icon folder:** the folder the user names (e.g. `assets/svg`), else `icons/`, inside the working directory. List it (`ls`, names only, never read the files); the user's files win over downloads.
+     3. **Download only what is missing** into that folder, in one Bash command:
+        ```bash
+        d=icons; mkdir -p $d && [ -f $d/ICONSET ] || echo ph > $d/ICONSET; s=$(cat $d/ICONSET); for i in heart magnifying-glass; do [ -f $d/$i.svg ] || curl -sf -o $d/$i.svg https://api.iconify.design/$s/$i.svg || echo "missing: $i"; done
+        ```
+        For a `missing:` name, look it up at `https://api.iconify.design/search?query=<word>&prefix=<set>&limit=5`.
+     4. **Insert** each into an "Icons" frame in the components section: `create_svg(path: "<folder>/<name>.svg", parentId: <Icons frame>, width: 24, height: 24, colorVariable: "icon/primary")`.
+     5. **Make it a component:** `create_component(nodeId, name: "Icon/<name>")`, one per icon, same 24x24 size.
+   - **On screens:** `create_instance` of `Icon/<name>` only. Never call `create_svg` on a screen, never draw icons from shapes, never paste markup into `svg`.
+     - Size: `resize_nodes` on the instance (16/20/24/32).
+     - Colour for one place: `set_fills` with `colorVariable` (e.g. `brand/primary`) on the vector layers inside the instance; the component keeps `icon/primary`.
+     - Changing an icon everywhere = edit the `Icon/<name>` component once.
 6. **Images:** Put photos into existing placeholders with `set_image_fill(nodeIds, imageData, scaleMode)` instead of creating loose image nodes.
 
 ### Stage 4: Design System & Token Binding (UI/UX Pro Max Integration)

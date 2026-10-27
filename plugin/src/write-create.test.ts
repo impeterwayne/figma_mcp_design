@@ -132,6 +132,21 @@ describe("create_component", () => {
     expect(comp.primaryAxisAlignItems).toBe("CENTER");
   });
 
+  it("converts in place when figma.createComponentFromNode exists, keeping the node's own settings", async () => {
+    const frame: any = { id: "1:1", name: "Button", type: "FRAME", children: [] };
+    mockNodes["1:1"] = frame;
+    let from: any;
+    (globalThis as any).figma.createComponentFromNode = (n: any) => {
+      from = n;
+      return { id: "1:1", name: n.name, type: "COMPONENT", x: 0, y: 0, width: 312, height: 56 };
+    };
+    const res = await handleWriteCreateRequest(makeRequest("create_component", ["1:1"], { name: "Button/Primary" }));
+    expect(from).toBe(frame);
+    expect(res?.data).toMatchObject({ id: "1:1", name: "Button/Primary", type: "COMPONENT", bounds: { width: 312, height: 56 } });
+    expect(createdComponents).toHaveLength(0);
+    expect(commitUndoCalled).toBe(true);
+  });
+
   it("throws when nodeId not found", async () => {
     await expect(
       handleWriteCreateRequest(makeRequest("create_component", ["9:9"]))

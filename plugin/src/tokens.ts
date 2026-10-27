@@ -240,8 +240,19 @@ export const autoTextStyle = async (node: any, log?: TokenLog): Promise<TextStyl
 
 // ── binding ───────────────────────────────────────────────────────────────────
 
+// The paint is seeded with the variable's own colour: on an instance, re-binding the
+// variable the main component already uses would otherwise leave an override that
+// renders the black placeholder. Alias values fall back to black.
+const seedPaint = (variable: Variable): SolidPaint => {
+  const modes: any = (variable as any).valuesByMode ?? {};
+  const v: any = modes[Object.keys(modes)[0]];
+  return v && typeof v === "object" && "r" in v
+    ? { type: "SOLID", color: { r: v.r, g: v.g, b: v.b }, opacity: 1 }
+    : makeSolidPaint("#000000");
+};
+
 export const boundPaint = (variable: Variable, opacity?: number) => {
-  const paint = figma.variables.setBoundVariableForPaint(makeSolidPaint("#000000"), "color", variable);
+  const paint = figma.variables.setBoundVariableForPaint(seedPaint(variable), "color", variable);
   return opacity != null && opacity !== 1 ? { ...paint, opacity: Number(opacity) } : paint;
 };
 
