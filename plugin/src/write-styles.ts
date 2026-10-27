@@ -1,7 +1,290 @@
-import { makeSolidPaint, hexToRgb } from "./write-helpers";
+import { makeSolidPaint, hexToRgb, loadNodeFonts } from "./write-helpers";
+import { ensureEffectStyle, logData, newLog } from "./tokens";
+
+const channelHex = (v: number) => Math.round(v * 255).toString(16).padStart(2, "0").toUpperCase();
+const paintHex = (paint: any) => `#${channelHex(paint.color.r)}${channelHex(paint.color.g)}${channelHex(paint.color.b)}`;
+// A translucent solid also gets an #RRGGBBAA key so a mapping can target one opacity only.
+const paintHexAlpha = (paint: any) => {
+  const opacity = paint.opacity ?? 1;
+  return opacity < 1 ? `${paintHex(paint)}${channelHex(opacity)}` : paintHex(paint);
+};
+
+// Visits every node under root; instance internals only when includeInstances is set.
+const walkNodes = (node: any, includeInstances: boolean, visit: (n: any) => void) => {
+  visit(node);
+  if (node.type === "INSTANCE" && !includeInstances) return;
+  if ("children" in node && node.children) {
+    for (const child of node.children) walkNodes(child, includeInstances, visit);
+  }
+};
 
 export const handleWriteStyleRequest = async (request: any) => {
   switch (request.type) {
+    case "replace_colors": {
+      const p = request.params || {};
+      const rootId = request.nodeIds && request.nodeIds[0];
+      if (!rootId) throw new Error("nodeId is required");
+      const root = await figma.getNodeByIdAsync(rootId);
+      if (!root) throw new Error(`Node not found: ${rootId}`);
+      const includeInstances = !!p.includeInstances;
+      const typeFilter: Set<string> | null = Array.isArray(p.nodeTypes) && p.nodeTypes.length > 0 ? new Set(p.nodeTypes) : null;
+      const isGradient = (paint: any) => String(paint.type).startsWith("GRADIENT");
+      const isShadow = (effect: any) => effect.type === "DROP_SHADOW" || effect.type === "INNER_SHADOW";
+
+      if (p.dryRun) {
+        const usage = new Map<string, { hex: string; fills: number; strokes: number; gradientStops: number; effects: number }>();
+        const entry = (hex: string) => {
+          if (!usage.has(hex)) usage.set(hex, { hex, fills: 0, strokes: 0, gradientStops: 0, effects: 0 });
+          return usage.get(hex)!;
+        };
+        let skippedMixed = 0;
+        walkNodes(root, includeInstances, (n) => {
+          for (const field of ["fills", "strokes"] as const) {
+            if (!(field in n)) continue;
+            const paints = n[field];
+            if (typeof paints === "symbol") {
+              if (field === "fills" && typeof n.getStyledTextSegments === "function") {
+                for (const seg of n.getStyledTextSegments(["fills"])) {
+                  for (const paint of seg.fills) if (paint.type === "SOLID") entry(paintHexAlpha(paint)).fills++;
+                }
+              } else {
+                skippedMixed++;
+              }
+              continue;
+            }
+            for (const paint of paints || []) {
+              if (paint.type === "SOLID") entry(paintHexAlpha(paint))[field]++;
+              else if (isGradient(paint)) for (const stop of paint.gradientStops) entry(paintHex(stop)).gradientStops++;
+            }
+          }
+          if (Array.isArray(n.effects)) {
+            for (const effect of n.effects) if (isShadow(effect)) entry(paintHex(effect)).effects++;
+          }
+        });
+        const total = (c: any) => c.fills + c.strokes + c.gradientStops + c.effects;
+        const colors = [...usage.values()].sort((a, b) => total(b) - total(a));
+        return { type: request.type, requestId: request.requestId, data: { colors, skippedMixed } };
+      }
+
+      if (!Array.isArray(p.mappings) || p.mappings.length === 0) throw new Error("mappings is required unless dryRun");
+      // Resolve every target before touching the document so a bad mapping changes nothing.
+      const targets = new Map<string, { variable?: any; color?: string; gradient?: string[] }>();
+      for (const m of p.mappings) {
+        const from = String(m.from).toUpperCase();
+        if (m.variableId) {
+          const variable = await figma.variables.getVariableByIdAsync(m.variableId);
+          if (!variable) throw new Error(`Variable not found: ${m.variableId}`);
+          targets.set(from, { variable });
+        } else if (m.color) {
+          targets.set(from, { color: m.color });
+        } else if (Array.isArray(m.gradient) && m.gradient.length >= 2) {
+          targets.set(from, { gradient: m.gradient });
+        } else {
+          throw new Error(`Mapping for ${from} needs variableId, color or gradient`);
+        }
+      }
+      // Gradient stops cannot bind variables here, so they take the target's resolved colour.
+      // A solid becomes a left-to-right linear gradient with evenly spaced stops.
+      const gradientPaint = (hexes: string[], plain: any) => ({
+        type: "GRADIENT_LINEAR",
+        gradientTransform: [[1, 0, 0], [0, 1, 0]],
+        gradientStops: hexes.map((hex, i) => {
+          const { r, g, b } = hexToRgb(hex);
+          return { position: i / (hexes.length - 1), color: { r, g, b, a: 1 } };
+        }),
+        opacity: plain.opacity ?? 1,
+        visible: plain.visible ?? true,
+        blendMode: plain.blendMode ?? "NORMAL",
+      });
+      const targetRgb = (target: { variable?: any; color?: string }, node: any) => {
+        if (target.color) { const { r, g, b } = hexToRgb(target.color); return { r, g, b }; }
+        const { r, g, b } = target.variable.resolveForConsumer(node).value;
+        return { r, g, b };
+      };
+      // Figma drops a paint's own opacity once a colour variable is bound, so the variable's
+      // alpha is what renders. Binding a variable whose alpha differs from the paint's would
+      // turn glass or scrim fills solid, so such paints are left untouched and counted.
+      const keepsOpacity = (target: { variable?: any }, node: any, paint: any) => {
+        if (!target.variable) return true;
+        const opacity = paint.opacity ?? 1;
+        const alpha = target.variable.resolveForConsumer(node).value.a ?? 1;
+        return Math.abs(alpha - opacity) < 0.01;
+      };
+      let skippedTranslucent = 0;
+      const replaced: Record<string, number> = {};
+      const count = (hex: string) => { replaced[hex] = (replaced[hex] || 0) + 1; };
+      let nodesChanged = 0;
+      const mixedTexts: any[] = [];
+      walkNodes(root, includeInstances, (n) => {
+        if (typeFilter && !typeFilter.has(n.type)) return;
+        if (n.type === "TEXT" && typeof n.fills === "symbol" && typeof n.getStyledTextSegments === "function") {
+          mixedTexts.push(n);
+        }
+        let changed = false;
+        for (const field of ["fills", "strokes"]) {
+          if (!(field in n) || typeof n[field] === "symbol" || !n[field]) continue;
+          let touched = false;
+          const next = n[field].map((paint: any) => {
+            if (isGradient(paint)) {
+              let stopTouched = false;
+              const gradientStops = paint.gradientStops.map((stop: any) => {
+                const hex = paintHex(stop);
+                const target = targets.get(hex);
+                if (!target || target.gradient) return stop;
+                stopTouched = true;
+                count(hex);
+                return { ...stop, color: { ...targetRgb(target, n), a: stop.color.a } };
+              });
+              if (!stopTouched) return paint;
+              touched = true;
+              return { ...paint, gradientStops };
+            }
+            if (paint.type !== "SOLID") return paint;
+            const hexAlpha = paintHexAlpha(paint);
+            const hex = targets.has(hexAlpha) ? hexAlpha : paintHex(paint);
+            const target = targets.get(hex);
+            if (!target) return paint;
+            if (!keepsOpacity(target, n, paint)) { skippedTranslucent++; return paint; }
+            touched = true;
+            count(hex);
+            const { boundVariables, ...plain } = paint;
+            if (target.gradient) return gradientPaint(target.gradient, plain);
+            if (target.variable) {
+              const bound = figma.variables.setBoundVariableForPaint(plain, "color", target.variable);
+              return { ...bound, opacity: plain.opacity ?? 1 };
+            }
+            return { ...plain, color: targetRgb(target, n) };
+          });
+          if (touched) { n[field] = next; changed = true; }
+        }
+        if (Array.isArray(n.effects)) {
+          let fxTouched = false;
+          const effects = n.effects.map((effect: any) => {
+            if (!isShadow(effect)) return effect;
+            const hex = paintHex(effect);
+            const target = targets.get(hex);
+            if (!target || target.gradient) return effect;
+            fxTouched = true;
+            count(hex);
+            return { ...effect, color: { ...targetRgb(target, n), a: effect.color.a } };
+          });
+          if (fxTouched) { n.effects = effects; changed = true; }
+        }
+        if (changed) nodesChanged++;
+      });
+      // Text with per-range colours: recolour each matching range.
+      for (const n of mixedTexts) {
+        let changed = false;
+        for (const seg of n.getStyledTextSegments(["fills"])) {
+          let touched = false;
+          const next = seg.fills.map((paint: any) => {
+            if (paint.type !== "SOLID") return paint;
+            const hexAlpha = paintHexAlpha(paint);
+            const hex = targets.has(hexAlpha) ? hexAlpha : paintHex(paint);
+            const target = targets.get(hex);
+            if (!target) return paint;
+            if (!keepsOpacity(target, n, paint)) { skippedTranslucent++; return paint; }
+            touched = true;
+            count(hex);
+            const { boundVariables, ...plain } = paint;
+            if (target.gradient) return gradientPaint(target.gradient, plain);
+            if (target.variable) {
+              const bound = figma.variables.setBoundVariableForPaint(plain, "color", target.variable);
+              return { ...bound, opacity: plain.opacity ?? 1 };
+            }
+            return { ...plain, color: targetRgb(target, n) };
+          });
+          if (touched) {
+            if (!changed) {
+              try { await loadNodeFonts(n); } catch (_) { /* fills do not depend on fonts */ }
+            }
+            n.setRangeFills(seg.start, seg.end, next);
+            changed = true;
+          }
+        }
+        if (changed) nodesChanged++;
+      }
+      figma.commitUndo();
+      return {
+        type: request.type,
+        requestId: request.requestId,
+        data: skippedTranslucent > 0 ? { replaced, nodesChanged, skippedTranslucent } : { replaced, nodesChanged },
+      };
+    }
+
+    case "snap_to_tokens": {
+      const p = request.params || {};
+      const rootId = request.nodeIds && request.nodeIds[0];
+      if (!rootId) throw new Error("nodeId is required");
+      if (!p.spacingVariables) throw new Error("spacingVariables is required");
+      if (!p.radiusVariables) throw new Error("radiusVariables is required");
+      const root = await figma.getNodeByIdAsync(rootId);
+      if (!root) throw new Error(`Node not found: ${rootId}`);
+
+      const loadScale = async (map: Record<string, string>) => {
+        const scale: { value: number; variable: any }[] = [];
+        for (const [value, id] of Object.entries(map)) {
+          const variable = await figma.variables.getVariableByIdAsync(id);
+          if (!variable) throw new Error(`Variable not found: ${id}`);
+          scale.push({ value: Number(value), variable });
+        }
+        return scale.sort((a, b) => a.value - b.value);
+      };
+      const spacing = await loadScale(p.spacingVariables);
+      const radiusAll = await loadScale(p.radiusVariables);
+      const full = radiusAll.find((s) => s.value >= 999);
+      const radius = radiusAll.filter((s) => s.value < 999);
+      // Nearest step; ties go to the smaller step.
+      const nearest = (scale: { value: number; variable: any }[], v: number) =>
+        scale.reduce((best, s) => (Math.abs(s.value - v) < Math.abs(best.value - v) ? s : best), scale[0]);
+
+      // Values far above the top step are layout gaps, not tokens; leave them alone.
+      const spacingLimit = spacing.length > 0 ? spacing[spacing.length - 1].value * 1.1 : 0;
+      const skippedReport: Record<string, number> = {};
+      const spacingReport: Record<string, number> = {};
+      const radiusReport: Record<string, number> = {};
+      const note = (report: Record<string, number>, key: string) => { report[key] = (report[key] || 0) + 1; };
+      let nodesChanged = 0;
+      const spacingFields = ["paddingTop", "paddingRight", "paddingBottom", "paddingLeft", "itemSpacing"];
+      const corners = ["topLeftRadius", "topRightRadius", "bottomLeftRadius", "bottomRightRadius"];
+      const radiusTypes = new Set(["FRAME", "COMPONENT", "COMPONENT_SET", "INSTANCE", "RECTANGLE"]);
+
+      walkNodes(root, false, (n) => {
+        let changed = false;
+        if (n.layoutMode && n.layoutMode !== "NONE" && spacing.length > 0) {
+          for (const field of spacingFields) {
+            const v = n[field];
+            if (typeof v !== "number" || v <= 0) continue;
+            if (v > spacingLimit) { note(skippedReport, String(v)); continue; }
+            const step = nearest(spacing, v);
+            note(spacingReport, `${v}→${step.value}`);
+            if (!p.dryRun) n.setBoundVariable(field, step.variable);
+            changed = true;
+          }
+        }
+        if (radiusTypes.has(n.type) && "cornerRadius" in n) {
+          const values = typeof n.cornerRadius === "number"
+            ? corners.map(() => n.cornerRadius)
+            : corners.map((c) => n[c]);
+          const pillAt = Math.min(n.width ?? Infinity, n.height ?? Infinity) / 2 - 0.5;
+          corners.forEach((corner, i) => {
+            const v = values[i];
+            if (typeof v !== "number" || v <= 0) return;
+            const step = full && v >= pillAt ? full : radius.length > 0 ? nearest(radius, v) : null;
+            if (!step) return;
+            if (i === 0 || typeof n.cornerRadius !== "number") {
+              note(radiusReport, `${v}→${step === full ? "full" : step.value}`);
+            }
+            if (!p.dryRun) n.setBoundVariable(corner, step.variable);
+            changed = true;
+          });
+        }
+        if (changed) nodesChanged++;
+      });
+      if (!p.dryRun) figma.commitUndo();
+      return { type: request.type, requestId: request.requestId, data: { spacing: spacingReport, radius: radiusReport, skipped: skippedReport, nodesChanged } };
+    }
+
     case "create_paint_style": {
       const p = request.params || {};
       if (!p.name) throw new Error("name is required");
@@ -213,10 +496,21 @@ export const handleWriteStyleRequest = async (request: any) => {
       const p = request.params || {};
       const nodeId = request.nodeIds && request.nodeIds[0];
       if (!nodeId) throw new Error("nodeId is required");
-      if (!Array.isArray(p.effects)) throw new Error("effects array is required");
+      if (!Array.isArray(p.effects) && !p.effectStyle) throw new Error("effects array is required (or pass effectStyle)");
       const node = await figma.getNodeByIdAsync(nodeId) as any;
       if (!node) throw new Error(`Node not found: ${nodeId}`);
       if (!("effects" in node)) throw new Error(`Node ${nodeId} does not support effects`);
+      // A named style is reused, matched by value, or created from p.effects;
+      // raw effects alone link to an identical existing style.
+      const log = newLog();
+      const style = p.effectStyle || (p.link !== false && Array.isArray(p.effects) && p.effects.length > 0)
+        ? await ensureEffectStyle(p.effectStyle, p.effects, log, p.link !== false)
+        : null;
+      if (style) {
+        await node.setEffectStyleIdAsync(style.id);
+        figma.commitUndo();
+        return { type: request.type, requestId: request.requestId, data: { id: node.id, name: node.name, effectStyle: style.name, ...logData(log) } };
+      }
       const effects: Effect[] = p.effects.map((e: any) => {
         switch (e.type) {
           case "DROP_SHADOW":

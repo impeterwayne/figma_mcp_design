@@ -17,9 +17,12 @@ import (
 	"github.com/pdfcpu/pdfcpu/pkg/api"
 )
 
+// screenshotMaxSize caps the longest side, in pixels, of a get_screenshot image.
+const screenshotMaxSize = 1600
+
 func registerReadExportTools(s *server.MCPServer, node *Node) {
 	s.AddTool(mcp.NewTool("get_screenshot",
-		mcp.WithDescription("Export a screenshot of one or more nodes as base64-encoded image data (held in memory). Use save_screenshots instead when you want to write images directly to disk without base64 in the response."),
+		mcp.WithDescription("Export a screenshot of one or more nodes. Check one screen or section at a time, not whole pages; images are capped at 1600px on the longest side (smaller scale used and reported as downscaled). Use save_screenshots to write images to disk instead."),
 		mcp.WithArray("nodeIds",
 			mcp.Description("Optional node IDs to export, colon format. If empty, exports current selection."),
 			mcp.WithStringItems(),
@@ -28,20 +31,31 @@ func registerReadExportTools(s *server.MCPServer, node *Node) {
 			mcp.Description("Export format: PNG (default), SVG, JPG, or PDF"),
 		),
 		mcp.WithNumber("scale",
-			mcp.Description("Export scale for raster formats (default 2)"),
+			mcp.Description("Export scale for raster formats (default 1; pass 2 only when fine detail matters)"),
+		),
+		mcp.WithString("output",
+			mcp.Description("image (default): PNG/JPG as viewable images, SVG as markup text. base64: raw base64 in JSON for every format"),
 		),
 	), func(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 		raw, _ := req.GetArguments()["nodeIds"].([]interface{})
 		nodeIDs := toStringSlice(raw)
-		params := map[string]interface{}{}
+		// save_screenshots keeps the plugin's scale 2 default; on-screen checks use 1.
+		params := map[string]interface{}{"scale": float64(1), "maxSize": float64(screenshotMaxSize)}
 		if f, ok := req.GetArguments()["format"].(string); ok && f != "" {
 			params["format"] = f
 		}
 		if s, ok := req.GetArguments()["scale"].(float64); ok && s > 0 {
 			params["scale"] = s
 		}
+		output, _ := req.GetArguments()["output"].(string)
+		if output != "" && output != "image" && output != "base64" {
+			return mcp.NewToolResultError(fmt.Sprintf("output must be image or base64, got: %s", output)), nil
+		}
 		resp, err := node.Send(ctx, "get_screenshot", nodeIDs, params)
-		return renderResponse(resp, err)
+		if output == "base64" || err != nil || resp.Error != "" {
+			return renderResponse(resp, err)
+		}
+		return renderScreenshotContent(resp.Data)
 	})
 
 	s.AddTool(mcp.NewTool("export_frames_to_pdf",

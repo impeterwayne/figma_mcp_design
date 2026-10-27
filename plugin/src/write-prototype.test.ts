@@ -187,3 +187,53 @@ describe("unknown type", () => {
     expect(res).toBeNull();
   });
 });
+
+// ── set_connector_endpoints ───────────────────────────────────────────────────
+
+describe("set_connector_endpoints", () => {
+  const setup = () => {
+    const connector: any = {
+      id: "5:1", type: "CONNECTOR", name: "Connector line",
+      connectorStart: { endpointNodeId: "1:1", magnet: "AUTO" },
+      connectorEnd: { endpointNodeId: "1:2", magnet: "AUTO" },
+    };
+    mockNodes["5:1"] = connector;
+    mockNodes["1:1"] = { id: "1:1", type: "FRAME" };
+    mockNodes["1:2"] = { id: "1:2", type: "FRAME" };
+    mockNodes["2:1"] = { id: "2:1", type: "FRAME" };
+    mockNodes["2:2"] = { id: "2:2", type: "FRAME" };
+    return connector;
+  };
+
+  it("re-points both ends", async () => {
+    const connector = setup();
+    const res = await handleWritePrototypeRequest(
+      makeRequest("set_connector_endpoints", ["5:1"], { startNodeId: "2:1", endNodeId: "2:2", magnet: "LEFT" })
+    );
+    expect(connector.connectorStart).toEqual({ endpointNodeId: "2:1", magnet: "LEFT" });
+    expect(connector.connectorEnd).toEqual({ endpointNodeId: "2:2", magnet: "LEFT" });
+    expect(res?.data).toEqual({ id: "5:1", name: "Connector line", startNodeId: "2:1", endNodeId: "2:2" });
+    expect(commitUndoCalled).toBe(true);
+  });
+
+  it("keeps the end that is not passed", async () => {
+    const connector = setup();
+    await handleWritePrototypeRequest(makeRequest("set_connector_endpoints", ["5:1"], { endNodeId: "2:2" }));
+    expect(connector.connectorStart.endpointNodeId).toBe("1:1");
+    expect(connector.connectorEnd).toEqual({ endpointNodeId: "2:2", magnet: "AUTO" });
+  });
+
+  it("rejects a node that is not a connector", async () => {
+    setup();
+    await expect(
+      handleWritePrototypeRequest(makeRequest("set_connector_endpoints", ["1:1"], { endNodeId: "2:2" }))
+    ).rejects.toThrow("not a CONNECTOR");
+  });
+
+  it("rejects a missing target node", async () => {
+    setup();
+    await expect(
+      handleWritePrototypeRequest(makeRequest("set_connector_endpoints", ["5:1"], { endNodeId: "9:9" }))
+    ).rejects.toThrow("Node not found: 9:9");
+  });
+});

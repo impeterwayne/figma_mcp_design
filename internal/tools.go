@@ -51,6 +51,59 @@ func renderResponse(resp BridgeResponse, err error) (*mcp.CallToolResult, error)
 	return mcp.NewToolResultText(string(text)), nil
 }
 
+// renderScreenshotContent turns get_screenshot exports into MCP content: PNG and
+// JPG become image content the client can see (far fewer tokens than base64
+// text), SVG becomes its markup as text. Other formats keep base64 in the JSON.
+// Each export's metadata stays in one leading JSON text block.
+func renderScreenshotContent(data any) (*mcp.CallToolResult, error) {
+	payload, _ := data.(map[string]any)
+	exports, ok := payload["exports"].([]any)
+	if !ok {
+		return renderResponse(BridgeResponse{Data: data}, nil)
+	}
+	meta := make([]map[string]any, 0, len(exports))
+	var content []mcp.Content
+	for _, raw := range exports {
+		exp, _ := raw.(map[string]any)
+		if exp == nil {
+			continue
+		}
+		b64, _ := exp["base64"].(string)
+		format, _ := exp["format"].(string)
+		entry := make(map[string]any, len(exp))
+		for k, v := range exp {
+			if k != "base64" {
+				entry[k] = v
+			}
+		}
+		switch strings.ToUpper(format) {
+		case "PNG", "JPG":
+			mime := "image/png"
+			if strings.EqualFold(format, "JPG") {
+				mime = "image/jpeg"
+			}
+			entry["content"] = "image"
+			content = append(content, mcp.NewImageContent(b64, mime))
+		case "SVG":
+			svg, err := base64.StdEncoding.DecodeString(b64)
+			if err != nil {
+				entry["base64"] = b64
+				break
+			}
+			entry["content"] = "svg"
+			content = append(content, mcp.NewTextContent(string(svg)))
+		default:
+			entry["base64"] = b64
+		}
+		meta = append(meta, entry)
+	}
+	text, err := json.Marshal(map[string]any{"exports": meta})
+	if err != nil {
+		return mcp.NewToolResultError(fmt.Sprintf("marshal response: %v", err)), nil
+	}
+	return &mcp.CallToolResult{Content: append([]mcp.Content{mcp.NewTextContent(string(text))}, content...)}, nil
+}
+
 // toStringSlice converts []interface{} to []string.
 func toStringSlice(raw []interface{}) []string {
 	out := make([]string, 0, len(raw))

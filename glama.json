@@ -2,7 +2,7 @@
   "$schema": "https://glama.ai/mcp/schemas/server.json",
   "maintainers": ["impeterwayne"],
   "name": "Figma MCP Design",
-  "description": "Figma MCP server with full read/write access via plugin bridge — no API token, no rate limits. 79 tools for design automation: styles, variables, components, prototypes, and content.",
+  "description": "Figma MCP server with full read/write access via plugin bridge — no API token, no rate limits. 89 tools for design automation: styles, variables, components, prototypes, and content.",
   "license": "MIT",
   "tools": [
     { "name": "get_document", "description": "Full current page tree" },
@@ -22,7 +22,7 @@
     { "name": "get_annotations", "description": "Dev-mode annotations" },
     { "name": "get_fonts", "description": "All fonts used in current page, sorted by frequency" },
     { "name": "get_reactions", "description": "Prototype/interaction reactions on a node" },
-    { "name": "get_screenshot", "description": "Base64 image of node(s)" },
+    { "name": "get_screenshot", "description": "Image, SVG markup or base64 of node(s)" },
     { "name": "save_screenshots", "description": "Write screenshots to disk" },
     { "name": "export_frames_to_pdf", "description": "Export multiple frames as a single multi-page PDF" },
     { "name": "export_tokens", "description": "Export design tokens as JSON or CSS" },
@@ -32,6 +32,7 @@
     { "name": "create_ellipse", "description": "Create an ellipse or circle" },
     { "name": "create_text", "description": "Create a text node" },
     { "name": "import_image", "description": "Import a base64 image into Figma" },
+    { "name": "create_svg", "description": "Insert SVG markup or file as vectors" },
     { "name": "create_component", "description": "Create a component from a frame node" },
     { "name": "set_text", "description": "Update text content of an existing text node" },
     { "name": "find_replace_text", "description": "Find and replace text content across all TEXT nodes in a subtree" },
@@ -76,6 +77,8 @@
     { "name": "delete_variable", "description": "Delete a variable or entire collection" },
     { "name": "group_nodes", "description": "Group nodes together" },
     { "name": "ungroup_nodes", "description": "Ungroup one or more group nodes" },
+    { "name": "boolean_operation", "description": "Union, subtract, intersect, exclude or flatten shapes" },
+    { "name": "design_system_audit", "description": "Find layers not linked to variables/styles and bind exact token matches" },
     { "name": "swap_component", "description": "Swap a component instance to a different component" },
     { "name": "detach_instance", "description": "Detach one or more component instances" },
     { "name": "navigate_to_page", "description": "Navigate to a page by ID or name" },
@@ -83,6 +86,7 @@
     { "name": "rename_page", "description": "Rename an existing page in the Figma document" },
     { "name": "delete_page", "description": "Delete a page from the Figma document" },
     { "name": "set_reactions", "description": "Set prototype reactions on a node" },
-    { "name": "remove_reactions", "description": "Remove reactions from a node" }
+    { "name": "remove_reactions", "description": "Remove reactions from a node" },
+    { "name": "set_connector_endpoints", "description": "Re-point a connector to new start or end nodes" }
   ]
 }

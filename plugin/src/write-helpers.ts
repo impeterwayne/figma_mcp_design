@@ -51,7 +51,7 @@ export const base64ToBytes = (b64: string) => {
   const chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
   const lookup: Record<string, number> = {};
   for (let i = 0; i < chars.length; i++) lookup[chars[i]] = i;
-  const padded = b64.replace(/[^A-Za-z0-9+/=]/g, "");
+  const padded = b64.replace(/^data:[^,]*,/, "").replace(/[^A-Za-z0-9+/=]/g, "");
   const clean = padded.replace(/=/g, "");
   let outLen = Math.floor(padded.length * 3 / 4);
   if (padded.endsWith("==")) outLen -= 2;
@@ -68,4 +68,23 @@ export const base64ToBytes = (b64: string) => {
     if (j < outLen) bytes[j++] = ((c & 3) << 6) | d;
   }
   return bytes;
+};
+
+// Loads every font used by a TEXT node so its characters and text properties can be edited.
+export const loadNodeFonts = async (node: TextNode) => {
+  const fonts = typeof node.fontName === "symbol"
+    ? node.getRangeAllFontNames(0, node.characters.length)
+    : [node.fontName];
+  for (const font of fonts) await figma.loadFontAsync(font);
+};
+
+// Converts 24 -> PIXELS, "150%" -> PERCENT, "AUTO" -> AUTO (line height only).
+export const parseTextMeasure = (value: any, allowAuto: boolean): any => {
+  if (allowAuto && typeof value === "string" && value.toUpperCase() === "AUTO") return { unit: "AUTO" };
+  if (typeof value === "string" && value.trim().endsWith("%")) {
+    return { unit: "PERCENT", value: parseFloat(value) };
+  }
+  const n = Number(value);
+  if (Number.isNaN(n)) throw new Error(`Invalid measure: ${value}`);
+  return { unit: "PIXELS", value: n };
 };

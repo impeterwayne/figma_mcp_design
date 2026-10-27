@@ -140,22 +140,33 @@ func registerWriteStyleTools(s *server.MCPServer, node *Node) {
 	})
 
 	s.AddTool(mcp.NewTool("set_effects",
-		mcp.WithDescription("Apply one or more effects (drop shadow, inner shadow, layer blur, background blur) directly to a node. Replaces all existing effects. Pass an empty array to clear all effects."),
+		mcp.WithDescription("Apply effects to a node: link an effectStyle (preferred), or pass raw effects (drop shadow, inner shadow, layer blur, background blur), which replace all existing ones. An empty array clears them."),
 		mcp.WithString("nodeId",
 			mcp.Required(),
 			mcp.Description("Target node ID in colon format e.g. 4029:12345"),
 		),
 		mcp.WithArray("effects",
-			mcp.Required(),
 			mcp.Description("Array of effect objects. Each has: type (DROP_SHADOW | INNER_SHADOW | LAYER_BLUR | BACKGROUND_BLUR), radius, color (hex, shadows only), opacity (0–1, shadows only), offsetX, offsetY (shadows only), spread (shadows only), visible (default true)"),
 			mcp.Items(map[string]any{"type": "object"}),
 		),
+		mcp.WithString("effectStyle", mcp.Description("Effect style name or ID (preferred); created from effects if missing, multi-layer allowed")),
+		mcp.WithBoolean("link", mcp.Description("Link raw effects to an existing or auto-created style (default true)")),
 	), func(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 		args := req.GetArguments()
 		nodeID, _ := args["nodeId"].(string)
 		nodeID = NormalizeNodeID(nodeID)
-		params := map[string]interface{}{
-			"effects": args["effects"],
+		params := map[string]interface{}{}
+		if e, ok := args["effects"]; ok && e != nil {
+			params["effects"] = e
+		}
+		if st, ok := args["effectStyle"].(string); ok && st != "" {
+			params["effectStyle"] = st
+		}
+		if v, ok := args["link"].(bool); ok {
+			params["link"] = v
+		}
+		if msg := ValidateRPC("set_effects", []string{nodeID}, params); msg != "" {
+			return mcp.NewToolResultError(msg), nil
 		}
 		resp, err := node.Send(ctx, "set_effects", []string{nodeID}, params)
 		return renderResponse(resp, err)
@@ -231,6 +242,113 @@ func registerWriteStyleTools(s *server.MCPServer, node *Node) {
 			params["nodeId"] = NormalizeNodeID(nid)
 		}
 		resp, err := node.Send(ctx, "set_description", nil, params)
+		return renderResponse(resp, err)
+	})
+
+	s.AddTool(mcp.NewTool("replace_colors",
+		mcp.WithDescription("Recolour a whole subtree in one call: every SOLID fill/stroke matching a hex is rebound to a variable (preferred) or set to a new hex; matching gradient stops take the resolved colour. Opacity and stop alpha are kept. Run with dryRun=true first to list the colours in use. Instance internals are skipped unless includeInstances is true; edit main components instead."),
+		mcp.WithString("nodeId",
+			mcp.Required(),
+			mcp.Description("Root node or page ID in colon format e.g. '0:1'"),
+		),
+		mcp.WithArray("mappings",
+			mcp.Description("[{\"from\":\"#FF2D55\",\"variableId\":\"VariableID:1:2\"}, {\"from\":\"#FFFFFF\",\"color\":\"#F4F4F7\"}]; required unless dryRun"),
+			mcp.Items(map[string]any{
+				"type": "object",
+				"properties": map[string]any{
+					"from":       map[string]any{"type": "string", "description": "Hex #RRGGBB (any opacity) or #RRGGBBAA (only that opacity) to match"},
+					"variableId": map[string]any{"type": "string", "description": "COLOR variable to bind"},
+					"color":      map[string]any{"type": "string", "description": "Replacement hex #RRGGBB"},
+					"gradient":   map[string]any{"type": "array", "items": map[string]any{"type": "string"}, "description": "2-4 hex colours: turns matching solids into a left-to-right linear gradient"},
+				},
+				"required": []string{"from"},
+			}),
+		),
+		mcp.WithBoolean("dryRun", mcp.Description("Only report colour usage (hex, fill and stroke counts); change nothing")),
+		mcp.WithBoolean("includeInstances", mcp.Description("Also recolour inside instances, creating overrides (default false)")),
+		mcp.WithArray("nodeTypes", mcp.Description("Only recolour these node types, e.g. [\"TEXT\"]"), mcp.WithStringItems()),
+	), func(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+		args := req.GetArguments()
+		nodeID, _ := args["nodeId"].(string)
+		params := map[string]interface{}{}
+		if t, ok := args["nodeTypes"].([]interface{}); ok && len(t) > 0 {
+			params["nodeTypes"] = t
+		}
+		if m, ok := args["mappings"].([]interface{}); ok && len(m) > 0 {
+			params["mappings"] = m
+		}
+		for _, key := range []string{"dryRun", "includeInstances"} {
+			if v, ok := args[key].(bool); ok {
+				params[key] = v
+			}
+		}
+		resp, err := node.Send(ctx, "replace_colors", []string{nodeID}, params)
+		return renderResponse(resp, err)
+	})
+
+	s.AddTool(mcp.NewTool("snap_to_tokens",
+		mcp.WithDescription("Snap a subtree to the spacing and radius scale in one call: every auto-layout padding/itemSpacing is bound to the nearest spacing variable and every corner radius to the nearest radius variable (key 999 = full, used for pills). Skips text, vectors and instance internals. Run dryRun first to see the value changes."),
+		mcp.WithString("nodeId",
+			mcp.Required(),
+			mcp.Description("Root node ID in colon format e.g. '90:19994'"),
+		),
+		mcp.WithObject("spacingVariables",
+			mcp.Required(),
+			mcp.Description("Map of pixel value to FLOAT variable ID, e.g. {\"4\":\"VariableID:1:4\",\"8\":\"VariableID:1:8\"}"),
+		),
+		mcp.WithObject("radiusVariables",
+			mcp.Required(),
+			mcp.Description("Map of pixel value to FLOAT variable ID; use key \"999\" for the full/pill radius"),
+		),
+		mcp.WithBoolean("dryRun", mcp.Description("Only report value changes (e.g. \"10→8\": 3); bind nothing")),
+	), func(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+		args := req.GetArguments()
+		nodeID, _ := args["nodeId"].(string)
+		params := map[string]interface{}{
+			"spacingVariables": args["spacingVariables"],
+			"radiusVariables":  args["radiusVariables"],
+		}
+		if v, ok := args["dryRun"].(bool); ok {
+			params["dryRun"] = v
+		}
+		resp, err := node.Send(ctx, "snap_to_tokens", []string{nodeID}, params)
+		return renderResponse(resp, err)
+	})
+}
+
+var auditChecks = []string{"color", "text", "effect", "radius", "spacing", "repeat"}
+
+func registerDesignAuditTool(s *server.MCPServer, node *Node) {
+	s.AddTool(mcp.NewTool("design_system_audit",
+		mcp.WithDescription("Find layers not linked to the design system under a node or page: raw colours, text without a text style, effects without an effect style, radius/spacing off the variable scale, and repeated frames that should be components. Each issue names the matching token when one exists. fix=true binds exact matches; fix+create also makes tokens for the rest, so an old design joins the system. Run after each section."),
+		mcp.WithString("nodeId", mcp.Description("Root node or page ID in colon format; defaults to the current page")),
+		mcp.WithBoolean("fix", mcp.Description("Bind exact token matches (default false: report only)")),
+		mcp.WithBoolean("create", mcp.Description("With fix: create auto-named tokens (color/…, radius/…, space/…, Text/…, Effect/…) for values with no match, then bind them")),
+		mcp.WithArray("checks", mcp.Description("Subset of: color, text, effect, radius, spacing, repeat (default all)"), mcp.WithStringItems()),
+		mcp.WithBoolean("includeInstances", mcp.Description("Also scan inside instances (default false; fix their main component instead)")),
+		mcp.WithNumber("limit", mcp.Description("Max issues listed (default 50); summary counts are always complete")),
+	), func(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+		args := req.GetArguments()
+		var nodeIDs []string
+		if id, ok := args["nodeId"].(string); ok && id != "" {
+			nodeIDs = []string{NormalizeNodeID(id)}
+		}
+		params := map[string]interface{}{}
+		for _, key := range []string{"fix", "create", "includeInstances"} {
+			if v, ok := args[key].(bool); ok {
+				params[key] = v
+			}
+		}
+		if v, ok := args["limit"].(float64); ok {
+			params["limit"] = v
+		}
+		if raw, ok := args["checks"].([]interface{}); ok && len(raw) > 0 {
+			params["checks"] = toStringSlice(raw)
+		}
+		if msg := ValidateRPC("design_system_audit", nodeIDs, params); msg != "" {
+			return mcp.NewToolResultError(msg), nil
+		}
+		resp, err := node.Send(ctx, "design_system_audit", nodeIDs, params)
 		return renderResponse(resp, err)
 	})
 }

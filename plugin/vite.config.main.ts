@@ -2,7 +2,7 @@ import { defineConfig } from "vite";
 
 export default defineConfig({
   build: {
-    target: "es2015",
+    target: "es2017",
     lib: {
       entry: "src/main.ts",
       formats: ["iife"],
