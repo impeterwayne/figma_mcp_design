@@ -205,6 +205,7 @@ describe("create_svg", () => {
   let parent: any;
   let svgChildren: any[];
   let lastSvg: string | undefined;
+  let localVars: any[];
 
   const install = (opts: { throws?: boolean } = {}) => {
     parent = { id: "1:2", children: [] as any[], appendChild(c: any) { this.children.push(c); } };
@@ -225,10 +226,21 @@ describe("create_svg", () => {
         findAll: () => svgChildren,
       };
     };
+    const col = { id: "C:1", name: "Tokens", defaultModeId: "M:1" };
+    localVars = [{ id: "VariableID:5:1", name: "icon/primary", resolvedType: "COLOR", variableCollectionId: "C:1", valuesByMode: { "M:1": { r: 1, g: 1, b: 1, a: 1 } } }];
     f.variables = {
       getVariableByIdAsync: async (id: string) =>
         id === "VariableID:1:1" ? { id, resolvedType: "COLOR" } : id === "VariableID:1:2" ? { id, resolvedType: "FLOAT" } : null,
       setBoundVariableForPaint: (paint: any, _field: string, v: any) => ({ ...paint, boundVariables: { color: { id: v.id } } }),
+      getLocalVariablesAsync: async (type?: string) => localVars.filter((v) => !type || v.resolvedType === type),
+      getLocalVariableCollectionsAsync: async () => [col],
+      getVariableCollectionByIdAsync: async () => col,
+      createVariable: (name: string, _c: any, type: string) => {
+        const v: any = { id: `VariableID:new:${localVars.length}`, name, resolvedType: type, variableCollectionId: "C:1", valuesByMode: {},
+          setValueForMode(m: string, val: any) { this.valuesByMode[m] = val; } };
+        localVars.push(v);
+        return v;
+      },
     };
   };
 
@@ -266,8 +278,32 @@ describe("create_svg", () => {
 
   it("recolours with a hex colour", async () => {
     install();
-    await handleWriteCreateRequest(makeRequest("create_svg", [], { svg: "<svg/>", parentId: "1:2", color: "#FF0000" }));
+    await handleWriteCreateRequest(makeRequest("create_svg", [], { svg: "<svg/>", parentId: "1:2", color: "#FF0000", link: false }));
     expect(svgChildren[0].fills[0]).toMatchObject({ type: "SOLID", color: { r: 1, g: 0, b: 0 }, opacity: 0.5 });
+    expect(svgChildren[0].fills[0].boundVariables).toBeUndefined();
+  });
+
+  it("reuses a colour token by name", async () => {
+    install();
+    const res = await handleWriteCreateRequest(makeRequest("create_svg", [], { svg: "<svg/>", parentId: "1:2", colorVariable: "icon/primary" }));
+    expect(svgChildren[0].fills[0].boundVariables).toEqual({ color: { id: "VariableID:5:1" } });
+    expect(res?.data.tokens.reused).toEqual(["icon/primary"]);
+  });
+
+  it("creates a named colour token from color when missing", async () => {
+    install();
+    const res = await handleWriteCreateRequest(makeRequest("create_svg", [], { svg: "<svg/>", parentId: "1:2", colorVariable: "icon/accent", color: "#E50914" }));
+    expect(localVars.map((v) => v.name)).toContain("icon/accent");
+    expect(res?.data.tokens.created).toEqual(["Tokens/icon/accent"]);
+  });
+
+  it("tokenises a raw colour by default, reusing an equal value", async () => {
+    install();
+    const res = await handleWriteCreateRequest(makeRequest("create_svg", [], { svg: "<svg/>", parentId: "1:2", color: "#FFFFFF" }));
+    expect(svgChildren[0].fills[0].boundVariables).toEqual({ color: { id: "VariableID:5:1" } });
+    expect(res?.data.tokens.reused).toEqual(["icon/primary"]);
+    await handleWriteCreateRequest(makeRequest("create_svg", [], { svg: "<svg/>", parentId: "1:2", color: "#112233" }));
+    expect(localVars.map((v) => v.name)).toContain("color/112233");
   });
 
   it("rejects missing or non-colour variables before creating anything", async () => {

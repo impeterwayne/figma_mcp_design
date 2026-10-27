@@ -46,7 +46,7 @@ This document details the complete set of tools exposed by the Go Model Context 
 - `update_paint_style`: Update an existing paint style's name, color, or description.
 
 ## Exports
-- `get_screenshot`: Export one or more nodes in memory: PNG/JPG as MCP image content, SVG as markup text, PDF as base64. `output: "base64"` returns base64 JSON for every format.
+- `get_screenshot`: Export one or more nodes in memory: PNG/JPG as MCP image content, SVG as markup text, PDF as base64. `output: "base64"` returns base64 JSON for every format. Default scale 1; `maxSize` 1600 caps the longest side (reported as `scale` + `downscaled`). `save_screenshots` keeps scale 2.
 - `save_screenshots`: Export screenshots for multiple nodes and write them to the local filesystem.
 - `export_frames_to_pdf`: Export multiple frames as a single multi-page PDF file.
 
@@ -58,7 +58,7 @@ This document details the complete set of tools exposed by the Go Model Context 
 - `create_component`: Convert an existing FRAME node into a reusable COMPONENT.
 - `create_section`: Create a Figma Section node on the current page.
 - `import_image`: Import a base64-encoded image into Figma as a rectangle with an image fill.
-- `create_svg`: Insert SVG markup, or a `.svg` file read on the Go side from inside the working directory, as vectors. The server strips scripts, event handlers and external links and minifies the markup; optional uniform resize and recolour via `colorVariableId` or `color`.
+- `create_svg`: Insert SVG markup, or a `.svg` file read on the Go side from inside the working directory, as vectors. The server strips scripts, event handlers and external links and minifies the markup; optional uniform resize and recolour via `colorVariable` (token name, get-or-create with `color` as its value; a raw `color` is tokenised unless `link: false`), `colorVariableId` or `color`.
 
 ## Node Modification
 - `set_text`: Update the text content of a TEXT node, or of many nodes via `items: [{nodeId, text}]`.

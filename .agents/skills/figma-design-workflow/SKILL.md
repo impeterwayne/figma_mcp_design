@@ -51,7 +51,7 @@ Follow this 5-stage pipeline for reliable, deterministic Figma MCP operations:
    - Use `reparent_nodes` only to restructure nodes that already exist.
 
 ### Stage 3: Visual Styling & Typography
-1. **Fills & Colors:** Use `set_fills` with a hex color: `#RRGGBB` or `#RRGGBBAA`. Prefer `bind_variable_to_node` / `apply_style_to_node` when tokens exist.
+1. **Fills & Colors:** Use `set_fills` with `colorVariable` (token name); hex `#RRGGBB` / `#RRGGBBAA` only as the value for a new token. See Stage 4.
 2. **Strokes & Borders:** Use `set_strokes` with weight, color, and alignment.
 3. **Corner Radius:**
    - Cards/Panels: 8px - 16px.
@@ -60,20 +60,36 @@ Follow this 5-stage pipeline for reliable, deterministic Figma MCP operations:
    - Call `create_text` with `parentId`, font family, style, and size from the type scale.
    - Adjust existing text with **one** `set_text_properties` call over all affected `nodeIds` (fontFamily, fontStyle, fontSize, lineHeight `24`/`"150%"`/`"AUTO"`, letterSpacing, textAlignHorizontal, textCase, textAutoResize). Never delete and recreate text to restyle it.
    - Change copy on many nodes with one `set_text` call using `items: [{nodeId, text}, ...]`.
-5. **Images:** Put photos into existing placeholders with `set_image_fill(nodeIds, imageData, scaleMode)` instead of creating loose image nodes.
+5. **Icons:** Insert every icon with `create_svg` `path`, so the markup never passes through the conversation. Per screen:
+   1. **Icon folder:** the folder the user names (e.g. `assets/svg`), else `icons/`. It must be inside the working directory.
+   2. **List it first** (`ls <folder>`, names only, never read the files) and match the icons the screen needs against those names. The user's files always win over downloads.
+   3. **Download only what is missing** into the same folder, from the icon set the app already uses (one set for the whole app, e.g. Phosphor `ph`, Lucide `lucide`, Material Symbols `material-symbols`), in one Bash command:
+      ```bash
+      d=assets/svg; mkdir -p $d && for i in heart magnifying-glass; do curl -sf -o $d/$i.svg https://api.iconify.design/ph/$i.svg || echo "missing: $i"; done
+      ```
+      For a `missing:` name, look it up at `https://api.iconify.design/search?query=<word>&prefix=ph&limit=5`.
+   4. **Insert:** `create_svg(path: "<folder>/<name>.svg", parentId, width: 24, colorVariable: "icon/primary")`; the colour token is reused or created like other tokens.
+   - Do not draw icons from shapes or paste SVG markup into `svg` when a file can be used.
+6. **Images:** Put photos into existing placeholders with `set_image_fill(nodeIds, imageData, scaleMode)` instead of creating loose image nodes.
 
 ### Stage 4: Design System & Token Binding (UI/UX Pro Max Integration)
 1. Query design tokens from `ui-ux-pro-max` (or local `foundation_tokens.json`):
    ```bash
    python .agents/skills/ui-ux-pro-max/scripts/search.py "<product/domain>" --design-system
    ```
-2. Bind semantic variables or styles where available in the Figma document:
-   - `bind_variable_to_node(node_id, variable_id, field)`
-   - `apply_style_to_node(node_id, style_id, style_type)`
+2. Pass token names when creating or restyling, not raw hex/px. Each name is reused if it exists, reused by equal value if another token has it, otherwise created from the value passed with it. A file with no design system builds one while screens are drawn, and later screens reuse it.
+   - `create_frame` / `create_rectangle` / `create_ellipse`: `fillVariable`, `strokeVariable`, `radiusVariable`, `paddingVariable`, `gapVariable`, `effectStyle`.
+   - `create_text` / `set_text_properties`: `textStyle` (e.g. `"Type/Title"`), with font props describing the style if it must be created; `fillVariable` for colour.
+   - `set_fills` / `set_strokes`: `colorVariable` (plus `color` as the value to create it with). `set_effects`: `effectStyle` (plus `effects`).
+   - Raw values without a name are auto-tokenised (`color/E50914`, `radius/16`, `space/16`, `Text/<family> <style> <size>`). Use `link: false` only when a layer must stay raw.
+   - Name tokens semantically up front (`text/primary`, `surface/1`, `brand/primary`, `space/16`, `radius/lg`) and reuse the same names on every screen.
+3. After each section, run `design_system_audit` on it (`checks`, small `limit` to save tokens). Then `fix: true` binds exact matches; `fix: true, create: true` also creates tokens for the rest. Act on `repeats` by turning repeated frames into a component plus instances.
+4. Existing variables/styles can still be bound directly: `bind_variable_to_node`, `apply_style_to_node`.
 
 ### Stage 5: Bounds & Visual Verification
 1. Inspect modified nodes using `get_node(node_id)` to confirm sizing, positioning, and auto-layout bounds.
 2. Ensure text nodes have appropriate resizing behavior via `set_text_properties` `textAutoResize`: `"WIDTH_AND_HEIGHT"`, `"HEIGHT"`, `"NONE"`, or `"TRUNCATE"`.
+3. Check visuals with `get_screenshot` on one screen or section at a time, never a whole page. It defaults to scale 1 and caps images at 1600px; pass `scale: 2` only to inspect fine detail.
 
 ---
 

@@ -86,6 +86,10 @@ func TestValidateRPC_CreateSVG(t *testing.T) {
 	if msg := ValidateRPC("create_svg", nil, ok); msg != "" {
 		t.Errorf("valid params rejected: %s", msg)
 	}
+	named := map[string]interface{}{"svg": "<svg/>", "parentId": "1:2", "colorVariable": "icon/accent", "color": "#E50914"}
+	if msg := ValidateRPC("create_svg", nil, named); msg != "" {
+		t.Errorf("token name with its value rejected: %s", msg)
+	}
 	bad := []map[string]interface{}{
 		{"parentId": "1:2"},
 		{"svg": "<div/>", "parentId": "1:2"},
@@ -93,6 +97,7 @@ func TestValidateRPC_CreateSVG(t *testing.T) {
 		{"svg": "<svg/>", "parentId": "bad"},
 		{"svg": "<svg/>", "parentId": "1:2", "color": "red"},
 		{"svg": "<svg/>", "parentId": "1:2", "color": "#FF0000", "colorVariableId": "VariableID:1:1"},
+		{"svg": "<svg/>", "parentId": "1:2", "colorVariable": "icon/primary", "colorVariableId": "VariableID:1:1"},
 		{"svg": "<svg/>", "parentId": "1:2", "width": float64(0)},
 		{"svg": "<svg>" + strings.Repeat("a", maxSVGBytes) + "</svg>", "parentId": "1:2"},
 	}
@@ -107,6 +112,7 @@ func TestHandlers_CreateSVG(t *testing.T) {
 	s, _ := newTestServer(t)
 	callTool(t, s, "create_svg", map[string]any{"svg": "<svg/>", "parentId": "1:2", "width": float64(24), "color": "#111111"})
 	callTool(t, s, "create_svg", map[string]any{"svg": "<svg/>", "path": "a.svg", "parentId": "1:2"})
+	callTool(t, s, "create_svg", map[string]any{"svg": "<svg/>", "parentId": "1:2", "colorVariable": "icon/primary", "link": false})
 	callTool(t, s, "create_svg", map[string]any{"path": "missing.svg", "parentId": "1:2"})
 }
 

@@ -152,7 +152,7 @@ Mô tả của mọi tool được nạp vào ngữ cảnh của AI ở mỗi ph
 
 | Tool | Chức năng |
 |------|-----------|
-| `get_screenshot` | Chụp node trả về trong bộ nhớ: PNG/JPG dạng ảnh xem được, SVG dạng chuỗi code, PDF dạng base64 (`output: "base64"` trả base64 cho mọi định dạng). |
+| `get_screenshot` | Chụp node trả về trong bộ nhớ: PNG/JPG dạng ảnh xem được, SVG dạng chuỗi code, PDF dạng base64 (`output: "base64"` trả base64 cho mọi định dạng). Mặc định scale 1, cạnh dài nhất tối đa 1600px; nên chụp từng màn hoặc từng phần. |
 | `save_screenshots` | Chụp node và lưu thẳng thành file, trả về đường dẫn, dung lượng, kích thước — không kèm base64. |
 | `export_frames_to_pdf` | Xuất nhiều frame theo thứ tự và ghép thành một file PDF nhiều trang duy nhất trên ổ cứng. |
 
@@ -166,7 +166,7 @@ Mô tả của mọi tool được nạp vào ngữ cảnh của AI ở mỗi ph
 | `create_ellipse` | Tạo hình elip hoặc hình tròn kèm màu nền tùy chọn. |
 | `create_text` | Tạo node văn bản, tự động nạp font family và font style trước khi chèn. `textStyle` / `fillVariable` gắn vào design system: dùng lại token có sẵn (theo tên hoặc cùng giá trị), chưa có thì tạo mới từ font/màu truyền vào. |
 | `import_image` | Chèn ảnh PNG/JPG dạng base64 vào Figma dưới dạng node có image fill. |
-| `create_svg` | Chèn SVG (chuỗi code hoặc file `.svg` trong thư mục làm việc) thành vector chỉnh sửa được, tự co giãn theo kích thước và có thể đổi màu theo color variable. |
+| `create_svg` | Chèn SVG (chuỗi code hoặc file `.svg` trong thư mục làm việc) thành vector chỉnh sửa được, tự co giãn theo kích thước và đổi màu theo token màu (`colorVariable`: có thì dùng lại, chưa có thì tạo; `color` thô cũng tự gắn token trừ khi `link: false`). |
 | `create_instance` | Tạo instance của một component (hoặc variant mặc định của component set) bên trong một parent, có thể đặt luôn các thuộc tính. |
 | `create_component` | Chuyển đổi một node FRAME có sẵn thành COMPONENT tái sử dụng ngay tại vị trí đó. |
 

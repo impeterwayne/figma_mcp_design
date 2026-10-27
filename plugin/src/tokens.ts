@@ -27,7 +27,7 @@ export const colorKey = (c: any, alpha = 1) => {
   const a = alpha * (c.a ?? 1);
   return `#${hex2(c.r)}${hex2(c.g)}${hex2(c.b)}${a < 0.999 ? hex2(a) : ""}`;
 };
-const hexToRgba = (hex: string, opacity?: number) => {
+export const hexToRgba = (hex: string, opacity?: number) => {
   const { r, g, b, a } = hexToRgb(hex);
   return { r, g, b, a: a * (opacity ?? 1) };
 };

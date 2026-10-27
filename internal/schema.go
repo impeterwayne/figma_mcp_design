@@ -553,6 +553,9 @@ func ValidateRPC(tool string, nodeIDs []string, params map[string]interface{}) s
 		if color != "" && vid != "" {
 			return "pass color or colorVariableId, not both"
 		}
+		if name, _ := params["colorVariable"].(string); name != "" && vid != "" {
+			return "pass colorVariable or colorVariableId, not both"
+		}
 		if color != "" && !hexColorRe.MatchString(color) {
 			return fmt.Sprintf("color must be #RRGGBB, got: %s", color)
 		}

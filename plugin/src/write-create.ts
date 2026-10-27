@@ -1,6 +1,6 @@
 import { getBounds } from "./serializers";
 import { makeSolidPaint, getParentNode, base64ToBytes, applyAutoLayout } from "./write-helpers";
-import { applyTokens, autoTextStyle, ensureTextStyle, linkTextStyle, logData, newLog, tokenPaint } from "./tokens";
+import { applyTokens, autoTextStyle, colorKey, ensureTextStyle, ensureVariable, hexToRgba, linkTextStyle, logData, newLog, tokenPaint } from "./tokens";
 
 export const handleWriteCreateRequest = async (request: any) => {
   switch (request.type) {
@@ -126,9 +126,16 @@ export const handleWriteCreateRequest = async (request: any) => {
       const p = request.params || {};
       if (!p.svg) throw new Error("svg is required");
       const parent = await getParentNode(p.parentId);
-      const variable = p.colorVariableId ? await figma.variables.getVariableByIdAsync(p.colorVariableId) : null;
+      const log = newLog();
+      let variable: Variable | null = p.colorVariableId ? await figma.variables.getVariableByIdAsync(p.colorVariableId) : null;
       if (p.colorVariableId && !variable) throw new Error(`Variable not found: ${p.colorVariableId}`);
       if (variable && variable.resolvedType !== "COLOR") throw new Error(`Variable ${p.colorVariableId} is ${variable.resolvedType}, not COLOR`);
+      // colorVariable is a token name (get-or-create, color is its value); a raw
+      // color is tokenised too unless link is false.
+      if (!variable && (p.colorVariable || (p.color && p.link !== false))) {
+        const rgba = p.color ? hexToRgba(p.color) : undefined;
+        variable = await ensureVariable(p.colorVariable, "COLOR", rgba, log, undefined, rgba && `color/${colorKey(rgba).slice(1)}`);
+      }
 
       let svgNode: FrameNode;
       try {
@@ -165,7 +172,7 @@ export const handleWriteCreateRequest = async (request: any) => {
       return {
         type: request.type,
         requestId: request.requestId,
-        data: { id: svgNode.id, name: svgNode.name, type: svgNode.type, bounds: getBounds(svgNode), ...(recoloured > 0 ? { recoloured } : {}) },
+        data: { id: svgNode.id, name: svgNode.name, type: svgNode.type, bounds: getBounds(svgNode), ...(recoloured > 0 ? { recoloured } : {}), ...logData(log) },
       };
     }
 

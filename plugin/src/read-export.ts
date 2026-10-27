@@ -24,8 +24,17 @@ export const handleReadExportRequest = async (request: any) => {
         throw new Error(
           "No nodes to export. Select nodes or provide nodeIds.",
         );
+      // maxSize caps the longest side of a raster image in pixels, so a large
+      // node is exported smaller instead of flooding the response.
+      const maxSize =
+        request.params && request.params.maxSize > 0
+          ? request.params.maxSize
+          : 0;
       const exports = await Promise.all(
         targetNodes.map(async (node: any) => {
+          const longest = Math.max(node.width || 0, node.height || 0);
+          const nodeScale =
+            maxSize && longest * scale > maxSize ? maxSize / longest : scale;
           const settings: any =
             format === "SVG"
               ? { format: "SVG" }
@@ -34,11 +43,11 @@ export const handleReadExportRequest = async (request: any) => {
                 : format === "JPG"
                   ? {
                       format: "JPG",
-                      constraint: { type: "SCALE", value: scale },
+                      constraint: { type: "SCALE", value: nodeScale },
                     }
                   : {
                       format: "PNG",
-                      constraint: { type: "SCALE", value: scale },
+                      constraint: { type: "SCALE", value: nodeScale },
                     };
           const bytes = await node.exportAsync(settings);
           const base64 = figma.base64Encode(bytes);
@@ -49,6 +58,7 @@ export const handleReadExportRequest = async (request: any) => {
             base64,
             width: node.width,
             height: node.height,
+            ...(nodeScale !== scale ? { scale: nodeScale, downscaled: true } : {}),
           };
         }),
       );

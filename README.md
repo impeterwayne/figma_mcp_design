@@ -152,7 +152,7 @@ Every tool schema is loaded into the AI client's context each session. Pick the 
 
 | Tool | What it does |
 |------|--------------|
-| `get_screenshot` | Exports nodes held in memory: PNG/JPG as viewable images, SVG as markup text, PDF as base64 (`output: "base64"` returns base64 for every format). |
+| `get_screenshot` | Exports nodes held in memory: PNG/JPG as viewable images, SVG as markup text, PDF as base64 (`output: "base64"` returns base64 for every format). Scale 1 by default, longest side capped at 1600px; check one screen or section at a time. |
 | `save_screenshots` | Exports nodes straight to disk, returning path, size, and dimensions - no base64 in the response. |
 | `export_frames_to_pdf` | Exports multiple frames in order and merges them into a single multi-page PDF file on disk. |
 
@@ -166,7 +166,7 @@ Every tool schema is loaded into the AI client's context each session. Pick the 
 | `create_ellipse` | Creates an ellipse or circle with optional fill color. |
 | `create_text` | Creates a text node, automatically loading the requested font family and style. `textStyle` / `fillVariable` link it to the design system: an existing token is reused (by name or equal value), a missing one is created from the font/colour passed. |
 | `import_image` | Imports a base64-encoded PNG or JPG image into Figma as an image-filled node. |
-| `create_svg` | Inserts SVG markup or a `.svg` file from the working directory as editable vectors, scaled to size and optionally recoloured with a colour variable. |
+| `create_svg` | Inserts SVG markup or a `.svg` file from the working directory as editable vectors, scaled to size and recoloured with a colour token (`colorVariable`, get-or-create; raw `color` is tokenised unless `link: false`). |
 | `create_instance` | Creates an instance of a component (or a component set's default variant) inside a parent, optionally setting its properties. |
 | `create_component` | Converts an existing FRAME node into a reusable COMPONENT in place. |
 

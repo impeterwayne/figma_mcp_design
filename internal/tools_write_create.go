@@ -166,7 +166,7 @@ func registerWriteCreateTools(s *server.MCPServer, node *Node) {
 	})
 
 	s.AddTool(mcp.NewTool("create_svg",
-		mcp.WithDescription("Insert SVG markup (icon, logo, illustration) as editable vectors. Pass svg, or path to a .svg file in the working directory (cheaper: the markup never passes through you). Scripts and external links are stripped. width/height scale it keeping aspect ratio. colorVariableId (preferred) or color recolours every visible fill and stroke."),
+		mcp.WithDescription("Insert SVG markup (icon, logo, illustration) as editable vectors. Pass svg, or path to a .svg file in the working directory (cheaper: the markup never passes through you). Scripts and external links are stripped. width/height scale it keeping aspect ratio. colorVariable (token name, get-or-create with color as its value) recolours every visible fill and stroke; a raw color is tokenised unless link is false."),
 		mcp.WithString("svg", mcp.Description("SVG markup containing an <svg> element (max 500 KB)")),
 		mcp.WithString("path", mcp.Description(".svg file path, relative to the working directory or absolute inside it")),
 		mcp.WithString("parentId", mcp.Required(), mcp.Description("Parent node ID in colon format; use a page ID for top level")),
@@ -175,8 +175,10 @@ func registerWriteCreateTools(s *server.MCPServer, node *Node) {
 		mcp.WithNumber("width", mcp.Description("Target width; height follows the aspect ratio")),
 		mcp.WithNumber("height", mcp.Description("Target height; with width too, the SVG fits inside that box")),
 		mcp.WithString("name", mcp.Description("Node name")),
-		mcp.WithString("colorVariableId", mcp.Description("COLOR variable to bind to every visible fill and stroke")),
-		mcp.WithString("color", mcp.Description("Hex #RRGGBB for every visible fill and stroke")),
+		mcp.WithString("colorVariable", mcp.Description("COLOR token name or ID for every visible fill and stroke, e.g. icon/primary")),
+		mcp.WithString("colorVariableId", mcp.Description("COLOR variable ID (must exist)")),
+		mcp.WithString("color", mcp.Description("Hex #RRGGBB; the value for colorVariable if it must be created")),
+		mcp.WithBoolean("link", mcp.Description("false keeps a raw color unlinked (default true)")),
 	), func(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 		args := req.GetArguments()
 		svg, _ := args["svg"].(string)
@@ -194,10 +196,13 @@ func registerWriteCreateTools(s *server.MCPServer, node *Node) {
 			}
 		}
 		params := map[string]interface{}{"svg": cleanSVG(svg)}
-		for _, key := range []string{"parentId", "name", "colorVariableId", "color"} {
+		for _, key := range []string{"parentId", "name", "colorVariable", "colorVariableId", "color"} {
 			if v, ok := args[key].(string); ok && v != "" {
 				params[key] = v
 			}
+		}
+		if link, ok := args["link"].(bool); ok {
+			params["link"] = link
 		}
 		for _, key := range []string{"x", "y", "width", "height"} {
 			if v, ok := args[key].(float64); ok {
